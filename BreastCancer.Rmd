@@ -9,7 +9,7 @@ In the U.S. and Canada, breast cancer is the most diagnosed cancer among women a
 In this project, we will use the Original Wisconsin Breast Cancer dataset and analyze it.
 Goal of the project is to make machine learning models to predict the class of the tumor and its degree of malignancy.
 
-#Setup
+# Project Setup
 ```{r Installation Block}
 #New
 # install.packages("RColorBrewer")
@@ -47,7 +47,7 @@ Goal of the project is to make machine learning models to predict the class of t
 
 ```{r Library activation and Data loading}
 #Activation
-library(RColorBrewer)
+# library(RColorBrewer)
 library(shiny)
 library(ggpubr)
 library(broom)
@@ -73,7 +73,7 @@ library(bookdown) #for figure numbering
 library(DescTools)
 
 
-data =read.csv("./breast+cancer+wisconsin+original/breast-cancer-wisconsin.data", sep=",")
+data <- read.csv("./breast+cancer+wisconsin+original/breast-cancer-wisconsin.data", sep=",")
 
 #testing class distribution (Benign/Meta)
 data %>% 
@@ -82,7 +82,7 @@ data %>%
   count()
 ```
 
-###Description of attributes
+### Description of the attributes
 1. Clump Thickness: in benign tumors, cells are usually mono-layered, whereas in malignant tumors, they tend to clump and have multiple layers.
 2. Uniformity of the cell shape and size: Malignant tumor cells tend to be irregular and vary in their shape and size whereas benign tumors are fairly uniform in shape and size.
 3. Marginal Adhesion: Normal/healthy cells tend to stick together and have good adhesion, whereas cancer cells lose this ability. So we should see less adhesion in malignant compared to benign tumors.
