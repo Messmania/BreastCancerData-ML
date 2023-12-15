@@ -244,7 +244,7 @@ plotDensity <- function(db, target, xTitle){
 plotDistributionNoClass<- function(db, target, xTitle){
   p1 <- plotBox(db, target, xTitle)
   p2 <- plotDensity(db, target, xTitle)
-  ggarrange(p1, p2, nrow=2, ncol=1)
+  ggarrange(p1, p2, nrow=2, ncol=1, common.legend = T, legend="bottom")
 }
 ```
 
@@ -793,14 +793,14 @@ Seeing figure for boxplot distributions of all columns before in Chunk 14, we ca
 ```{r Util to Check presence of outliers}
 #we will check whether there are outliers i.e. 3SD away from mean
 
-hasOutliers <- function(col){
+hasOutliers <- function(.data, col){
   mn <- mean(col)
   sd <- sd(col)
   sd_3 <- c(mn-3*sd, mn+3*sd)
   
-  print(paste("Mean", round(mn, 2), "3SD range", round(sd_3, 2)))
+  print(paste("Mean", round(mn, 2), "3SD range", round(sd_3[1], 2), round(sd_3[2], 2) ))
   #check if the data has values outside 3SD range
-  if(any(range(cleaned_data$normalNucleoli) %][% sd_3)){
+  if(any(range(.data$normalNucleoli) %][% sd_3)){
     return(T)
   }
   return(F)
@@ -811,7 +811,7 @@ hasOutliers <- function(col){
 #Returns a new db with outliers removed
 removeOutliers <- function(.data, column){
   colValues <- .data[[column]]
-  if(!hasOutliers(colValues)){
+  if(!hasOutliers(.data, colValues)){
     return(.data)
   }
   
@@ -845,27 +845,30 @@ removeOutliers <- function(.data, column){
 cleaned_data <- removeOutliers(bc_transformed, cNames$mitoses)
 p1 <- plotDistributionNoClass(bc_transformed, cNames$mitoses, "Mitoses")
 p2 <- plotDistributionNoClass(cleaned_data, cNames$mitoses, "Mitoses")
-ggarrange(p1, p2, nrow=1, ncol=2, common.legend = T)
+ggarrange(p1, p2, nrow=1, ncol=2, common.legend = T, legend = "bottom")
 
+#TODO see if 4 coupled plots can have 1 common legend, right now it is showing as 2 legends, one for each set of plot.
 ```
 
 
 ```{r Remove singleEpiCellSize outliers, fig.width=10}
-hasOutliers(cleaned_data$singleEpiCellSize)
+hasOutliers(cleaned_data, cleaned_data$singleEpiCellSize)
 temp <- removeOutliers(cleaned_data, cNames$singleEpiCellSize)
-p1 <- plotDistributionNoClass(cleaned_data, cNames$singleEpiCellSize, "Single epithelial cell size")
-p2 <- plotDistributionNoClass(temp, cNames$singleEpiCellSize, "Single epithelial cell size")
-ggarrange(p1, p2, nrow=1, ncol=2, common.legend = T, legend = "top")
+p1 <- plotDistributionNoClass(cleaned_data, cNames$singleEpiCellSize, "Single epithelial cell size with outliers")
+p2 <- plotDistributionNoClass(temp, cNames$singleEpiCellSize, "Single epithelial cell size without outliers")
+ggarrange(p1, p2, nrow=1, ncol=2)
 
 cleaned_data <- temp
 ```
 
+Seeing the distribution, it doesn't change much with the removal of outliers.
+
 ```{r Remove other outliers, fig.width=10}
-hasOutliers(cleaned_data$normalNucleoli) #NONE
-hasOutliers(cleaned_data$blandChromatin)  #NONE
+hasOutliers(cleaned_data, cleaned_data$normalNucleoli) #NONE
+hasOutliers(cleaned_data, cleaned_data$blandChromatin)  #NONE
 ```
-Graphs after removal shows that the most distant points are now closer to the mean compared to before for Mitoses and Single Epithelial cell size values. There were no values beyond 3SD range for both normal nucleoli and bland chromatin columns.
-So we will build our RF model again.
+Graphs after outlier removal shows that the most distant points are now closer to the mean compared to before for Mitoses and Single Epithelial cell size values. There were no values beyond 3SD range for both normal nucleoli and bland chromatin columns.
+So we will build our RF model again. Let us first recenter our data.
 
 ```{r Centering the data again}
 db_c <- cleaned_data %>%
@@ -891,7 +894,7 @@ head(db_c)
 ```
 
 ### Final Random Forest
-```{r Trying RF again}
+```{r Creating Random Forest again}
 set.seed(137)
 
 #or: outlier removal
@@ -920,7 +923,7 @@ After removing all the outliers, the deviance dropped to ~412 and accuracy remai
 ## Linear regression models
 In this project, along with logistic regression and random forest predictions for benign and malignant classess, I also aim to predict the degree of malignancy of a tumor. So we will create a new column which will contain continuous values of degree of malignancy of a tumor, which can then be divided on basis of a threshold to classify them as benign or malignant. #TODO check last statement 
 
-To calculate this degree of malignancy, I want to be able to use all the attributes which are contributing to it, i.e. all columns, therefore we will do dimension reduction to achieve this.
+To calculate this degree of malignancy, I would like to be able to use all the attributes which are contributing to it, i.e. all columns, therefore we will do dimension reduction to achieve this.
 Let us do a PCA on our dataset.
 
 ```{r Utils to make PCA plots}
@@ -989,33 +992,12 @@ makePCPlots(pca, cleaned_data$class)
 # makePCPlots(pca, bc_transformed$class) #PC1 and PC2: 65% and 9%
 ```
 
-```{r REMOVE: DUMMY TEST: Trying centroid in PC12 plot}
-pca_x <- as.data.frame(pca$x)
-variance<- summary(pca)$importance["Proportion of Variance", ]
-
-  pca_matrix <- pca$x[, 1:2]
-  malignant_cluster <- as.data.frame(pca_matrix) %>% filter(PC1 < -1.25)
-# centroids <- aggregate(cbind(PC1,PC2)~bc_transformed$class, pca_x, mean)
-centroid <- colMeans(malignant_cluster)
-centroid[["PC1"]]
-centroids <- data.frame(PC1=centroid[["PC1"]], PC2= centroid[["PC2"]])
-ggplot(pca_x, aes(PC1, PC2, color=bc_transformed$class))+
-    geom_point()+
-    geom_point(data=centroids, aes(x=PC1, y=PC2, color="red"), size=5)+
-    labs(
-      x = getLabel(1, variance[1]),
-      y = getLabel(2, variance[2]),
-      color="Classification")+
-    theme(legend.position = "top")
-
-```
-
-
-We can see that PC1 and PC2, explains the maximum variance(64% & 8% resp.) in the dataset. So if we take PC1, PC2 to be our variables of interest, they can explain around 72% of the total variance in our data.
-So we will calculate the distance of each datapoint in this PC plot to the centroid of benign cluster. So the farther a point is from that centroid, more chances of it being malignant, hence we call this distance degree of malignancy of a tumor.
-To find the benign cluster, we can look at the PC1-PC2 plot and notice, PC1 >1.25 is mostly benign cluster.
+We can see that PC1 and PC2, explains the maximum variance (64% & 8% resp.) in the dataset. So if we take PC1, PC2 to be our variables of interest, they can explain around 72% of the total variance in our data.
+So we will calculate the distance of each datapoint in this PC plot to the centroid of the benign cluster. So the farther a point is from that centroid, more chances of it being malignant, hence we can call this distance the degree of malignancy of a tumor.
+To find the benign cluster, we can look at the PC1-PC2 plot and notice, PC1 > -1.25 is mostly benign cluster. SO let us consider that our threshold for getting all the data points of benign tumors and find its centroid.
 
 ```{r Util to plot centroid on PCA}
+#This function plots a big dot corresponding to the centroid of a cluster on a given pca
 plotCentroidOnPCA <- function(pca, color, centroid, thresh ){
   # color <- bc_transformed$class
   pca_x <- as.data.frame(pca$x)
@@ -1039,12 +1021,13 @@ plotCentroidOnPCA <- function(pca, color, centroid, thresh ){
 ```
 
 ```{r Creating distance matrix}
-#Using PC1 and PC2
+#Using PC1 and PC2 to be our variables of interest
 pca_matrix <- pca$x[, 1:2]
 # centroid <- colMeans(matrix_data) #centroid of the entire dataset
+#Since datapoints in PC1/PC2 plot at PC1 > -1.25 mostly form the benign tumor cluster
 threshold_for_benign <- -1.25
 benign_cluster <- as.data.frame(pca_matrix) %>% filter(PC1 > threshold_for_benign)
-centroid <- colMeans(malignant_cluster) # centroid of malignant cluster, for points PC1<-1.25
+centroid <- colMeans(benign_cluster) # centroid of malignant cluster, for points PC1<-1.25
 
 plotCentroidOnPCA(pca, cleaned_data$class, centroid, threshold_for_benign) #to see the location of centroid on PCA plot
 # distances <- round(sqrt(rowSums((matrix_data - centroid)^2)), 2)
@@ -1092,14 +1075,9 @@ plotDensity(cleaned_data, cNames$degreeOfMalignancy, "Degree of Malignancy")
 ```
 
 ### Building Linear regression model
-We will now make a linear regression model for degree of malignancy prediction.
-Let us use single epithelial cell size and clump thickness because they are fairly normally distributed.
+We will now make a linear regression model for the degree of malignancy prediction.
 
-```{r Check Correlation}
-cor(cleaned_data$singleEpiCellSize, cleaned_data$clumpThickness_sq) #0.48
-cor(cleaned_data$blandChromatin, cleaned_data$bareNuclei) #0.66
-cor(cleaned_data$blandChromatin, cleaned_data$clumpThickness_sq) #0.51 #should select these 2
-```
+Let us first check how does the linear relationship of all the variables with our outcome variable i.e. degree of malignancy looks.
 
 ```{r Util to check linearity}
 checkLinearity <- function(data, input, output){
@@ -1114,18 +1092,25 @@ checkLinearity <- function(data, input, output){
 ```
 
 ```{r Linearity check with Degree of Malignancy}
-
-checkLinearity(cleaned_data, cNames$bareNuclei, cNames$degreeOfMalignancy) #ok ok
+#Plotting in grid doesn't give a clear picture, so we will plot them individually
+checkLinearity(cleaned_data, cNames$bareNuclei, cNames$degreeOfMalignancy) #OK
 checkLinearity(cleaned_data, cNames$singleEpiCellSize, cNames$degreeOfMalignancy) #looks bad
-checkLinearity(cleaned_data, cNames$uniformityCellSize, cNames$degreeOfMalignancy) #looks ok
+checkLinearity(cleaned_data, cNames$uniformityCellSize, cNames$degreeOfMalignancy) #looks OK
 checkLinearity(cleaned_data, cNames$blandChromatin, cNames$degreeOfMalignancy) #looks much better
 checkLinearity(cleaned_data, cNames$marginalAdhesion, cNames$degreeOfMalignancy)
 checkLinearity(cleaned_data, cNames$normalNucleoli, cNames$degreeOfMalignancy)
 checkLinearity(cleaned_data, cNames$mitoses, cNames$degreeOfMalignancy) #worst, no greenline
 checkLinearity(cleaned_data, cNames$clumpThickness_sq, cNames$degreeOfMalignancy) #much better!
 
-#clumpT, uniSize, and bland chromatin can be selected.
+#clump thickness, uniformity in cell Size, and bland chromatin can be selected since they show fairly linear relationship to our outcome variable.
 ```
+Let us ensure none of these 3 variables are strongly correlated
+```{r Check Correlation}
+cor(cleaned_data$uniformityCellSize, cleaned_data$clumpThickness_sq) #0.58
+cor(cleaned_data$blandChromatin, cleaned_data$uniformityCellSize) #0.74
+cor(cleaned_data$blandChromatin, cleaned_data$clumpThickness_sq) #0.51
+```
+None of the correlations are too strong and hence we can use these 3 input variables to construct our linear model.
 
 ```{r Util to check homoscedasticity}
 checkHomoscedasticity <- function(residuals, fitValues){
@@ -1141,50 +1126,82 @@ checkHomoscedasticity <- function(residuals, fitValues){
 }
 ```
 
-
-```{r Create model}
+```{r Create linear model}
 model <- lm(degreeOfMalignancy~ clumpThickness_sq*blandChromatin*uniformityCellSize, data=cleaned_data)
 summary(model)
 ```
+
 Summary of the model shows that 88.5% of the variance in the dataset is explained by our linear model, which is good.
-RSE is only 0.78 and all individual coefficients are significant along with interaction b/w clump thickness and bland chromatin and 3 interacting variables.
-p-value <0.05 tells us that model overall is significant.
+RSE is only 0.78 and all individual coefficients are significant except interaction between clump thickness and its interaction with uniformity in cell size.
+p-value <0.05 tells us that overall the model is significant.
 Let us check the homoscedasticity and vif score of our model.
 
 ```{r check homoscedasticity}
-
 checkHomoscedasticity(model$residuals, model$fitted.values)
 ```
+Our model overall shows a linear fit due to nearly equal up/down variations around the linear line.
+
 ```{r check independence using vif}
 #if high, fix by standardizing the data.
 vif(model)
 ```
-All vif scores are greater than 5, and very high so let us try to standardize the input variables.
-```{r standardize}
+All vif scores are greater than 5, and very high, with highest being 341, so let us try to standardize the input variables.
+
+```{r Standardize the data}
 db_std <- cleaned_data %>% 
   select(clumpThickness_sq, blandChromatin, uniformityCellSize, degreeOfMalignancy) %>% 
-  mutate(stClumpThickness = clumpThickness_sq - mean(clumpThickness_sq), stBlandChromatin = blandChromatin - mean(blandChromatin), stUniformityCellSize = uniformityCellSize- mean(uniformityCellSize) )
+  mutate(stClumpThickness = clumpThickness_sq - mean(clumpThickness_sq), stBlandChromatin = log2(blandChromatin) - mean(log2(blandChromatin)), stUniformityCellSize = log2(uniformityCellSize)- mean(log2(uniformityCellSize)) )
 ```
+
 ```{r Recreate and check vif}
-model1 <- lm(degreeOfMalignancy~ stClumpThickness*stUniformityCellSize*stBlandChromatin, data=db_std)
-summary(model1)
-vif(model1) #almost all of them are under 5, some are around 6, which is acceptable.
-checkHomoscedasticity(model1$residuals, model1$fitted.values)
+lm_centered <- lm(degreeOfMalignancy~ stClumpThickness*stUniformityCellSize*stBlandChromatin, data=db_std)
+summary(lm_centered)
+vif(lm_centered) #all of them are under 5 now.
+checkHomoscedasticity(lm_centered$residuals, lm_centered$fitted.values)
+```
+Now all the vif scores are under 5. Also, note that our linear model has now improved with a tighter fit around the linear line after we centered the data.
+
+```{r Splitting the dataset}
+#Let us split the data into testing and training sets
+dim(db_std) #631
+
+set.seed(137)
+#divide into 1/3 as testing data (210), 2/3rd as training data
+test_rows <- sample(1: dim(db_std)[1], 210)
+
+db_test_lm <- db_std[test_rows, ]
+db_train_lm <- db_std[-test_rows, ]
+
+#Add Test/Train symbol to original dataset
+db_std$Type <- "train"
+db_std$Type[test_rows] <- "test"
 ```
 
-
-```{r Predict}
-#using predict function, see Lec-8 end
-#make new data, since there was not split done for this.
-#will have to make 3 columns for 3 variables, and whatever amounto f rows.
-cT <- sqrt(1)
-bC <- 1
-uCS <- 1
-newData <- data.frame(stUniformityCellSize = uCS, stClumpThickness = cT, stBlandChromatin = bC)
-pred <- predict.lm(model1, newdata = newData)
-pred
-#gives correct trend of predictions I guess
+```{r Remake the model on training data}
+lm_train <- lm(degreeOfMalignancy~ stClumpThickness*stUniformityCellSize*stBlandChromatin, data=db_train_lm)
+summary(lm_train)
+vif(lm_train) #all of them are under 5
+checkHomoscedasticity(lm_train$residuals, lm_train$fitted.values) #shows homoscedasticity still
 ```
+Our linear model explains ~89% of the variance in our dataset, and shows an RSE of only 0.73. This indicates that our predictions deviate by only by 0.73 units on an average from the true regression line. 
+With p being <0.05, overall our model is significant and shows good performance.
 
-##Discussion of linear model pending.
+```{r Prediction}
+pred_dom <- predict.lm(lm_train, newdata = db_test_lm)
+
+#Plotting the expected/actual and predicted degree of malignancy values
+ggplot(db_test_lm, aes(x = db_test_lm$degreeOfMalignancy , y = pred_dom)) +
+  geom_point(show.legend = T) +
+  geom_smooth(method = "lm", aes(color = "linear")) +
+  geom_smooth(method = "loess", aes(color = "loess")) +
+  ggtitle("Linear regression model predictions for degree of malignancy") +
+  xlab("Actual") +
+  ylab("Predicted")+
+  geom_point(aes(y = pred_dom), color = "red", shape = 16, alpha = 0.7)+
+  scale_colour_manual("Line fit", breaks =c("linear", "loess"), values = c("blue", "lightgreen") )
+```
+As we can see from the graph, our predictions are fairly similar to the actual values of degree of malignancy. Therefore our linear model performs well and predicts the degree of malignancy in the correct trend as expected.
+
+# Conclusion
+Hence, using the machine learning analysis, we were able to achieve a 95% accurate random forest and a well performing linear model explaining 89% variance in our dataset which enabled us to efficiently predict both the class and degree of malignancy of a tumor respectively.
 
