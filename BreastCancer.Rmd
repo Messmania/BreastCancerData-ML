@@ -1,0 +1,1190 @@
+---
+title: "BreastCancer"
+author: "Monika Sahai"
+date: "`r Sys.Date()`"
+output: bookdown::html_document2
+---
+#Introduction
+In the U.S. and Canada, breast cancer is the most diagnosed cancer among women accounting for almost 25% of all the cancer cases. It is one of the leading causes of cancer-related deaths in the U.S.
+In this project, we will use the Original Wisconsin Breast Cancer dataset and analyze it.
+Goal of the project is to make machine learning models to predict the class of the tumor and its degree of malignancy.
+
+#Setup
+```{r Installation Block}
+#New
+# install.packages("RColorBrewer")
+# # install.packages("githubr")
+# install.packages("shiny")
+# 
+# #ML
+# install.packages("GGally")
+# install.packages("broom")
+# install.packages("ggpubr")
+# install.packages("car")
+# 
+# install.packages("randomForest")
+# install.packages("rpart")
+# install.packages("pROC")
+# install.packages("plotROC")
+# install.packages("e1071")
+# install.packages("ipred")
+# install.packages("randomForest")
+# install.packages("greybox")
+# install.packages("bookdown")
+# install.packages("DescTools")
+# 
+# #Old
+# install.packages("tidyverse")
+# install.packages("cowplot")
+# install.packages("DT")
+# install.packages("ggplot2")
+# install.packages("formattable")
+
+# install.packages("prettydoc")
+
+# install.packages("ggpubr")
+```
+
+```{r Library activation and Data loading}
+#Activation
+library(RColorBrewer)
+library(shiny)
+library(ggpubr)
+library(broom)
+library(GGally)
+library(car)
+library(pROC)
+library(rpart)
+library(plotROC)
+library(e1071)
+library(ipred)
+library(randomForest)
+library(greybox)
+
+library(tidyverse)
+library(cowplot)
+library(DT)
+library(ggplot2)
+library(formattable)
+library(corrplot)
+
+library(magrittr) #for pipe compatible custom function
+library(bookdown) #for figure numbering
+library(DescTools)
+
+
+data =read.csv("./breast+cancer+wisconsin+original/breast-cancer-wisconsin.data", sep=",")
+
+#testing class distribution (Benign/Meta)
+data %>% 
+  select(X2.1) %>% 
+  group_by(X2.1) %>% 
+  count()
+```
+
+###Description of attributes
+1. Clump Thickness: in benign tumors, cells are usually mono-layered, whereas in malignant tumors, they tend to clump and have multiple layers.
+2. Uniformity of the cell shape and size: Malignant tumor cells tend to be irregular and vary in their shape and size whereas benign tumors are fairly uniform in shape and size.
+3. Marginal Adhesion: Normal/healthy cells tend to stick together and have good adhesion, whereas cancer cells lose this ability. So we should see less adhesion in malignant compared to benign tumors.
+4. Single epithelial cell size: Epithelial cells that are significantly enlarged are usually malignant whereas benign tumors do not show such enlargement.
+5. Bare nuclei: This refers to the amount of cytoplasm around the nuclei of a cell. Cancer cells tend to have more naked nuclei.
+6. Bland chromatin: Chromatin texture can be coarse in malignancy, whereas it is smoother and uniform in benign tumor cells.
+7. Normal nucleoli: nucleolus is small and uniform in benign cells, whereas it is very prominent in malignant cancer cells and can sometimes be in multiples.
+8. Mitoses: This is estimate of the number of mitoses a cell has gone through. Larger value indicates malignancy.
+
+#Data cleaning and wrangling
+```{r Rename columns}
+breast_cancer <- data %>% 
+  rename( sampleCodeNumber =X1000025, clumpThickness = X5, uniformityCellSize = X1, uniformityCellShape = X1.1, marginalAdhesion  = X1.2, singleEpiCellSize = X2, bareNuclei = X1.3, blandChromatin = X3, normalNucleoli=X1.4, mitoses=X1.5, class=X2.1 )
+
+head(breast_cancer)
+summary(breast_cancer)
+#type of attributes
+str(breast_cancer)
+colnames(breast_cancer)
+```
+
+```{r Utility to plot Missing Values, fig.width=15}
+#Find missing values and plot to see the proportions w.r.t all the valid values of each variable
+plotMissingValues <- function(value_df, showPlot=T){
+  
+  if(showPlot){
+    missing <- apply(value_df, 2, function(x){sum(x=='?')})
+    value_df <- data.frame(colNames=names(missing), missing = missing[] )
+    row.names(value_df) <- NULL #remove rownames
+  }
+  
+  
+  p2 <- value_df %>%
+    filter_all(all_vars(.>0)) %>%
+    #sort the names column by missing values, for ggplot
+    mutate(colNames = reorder(colNames, missing)) %>%
+    pivot_longer(c(missing), values_to = "Values", names_to = "ValueType") %>%
+    ggplot(aes(x=colNames, y=Values, fill="red"))+
+    geom_bar(position="stack", stat="identity", show.legend = F)+
+    geom_text(aes(label = Values), nudge_y = 1)+
+    labs( x = "Attributes", y="#Missing Values")+
+    scale_fill_brewer(palette = "Set1")+
+    ggtitle("Missing values")
+  
+  if(!showPlot){
+    return(
+      p2+
+        coord_flip()+
+        theme(axis.text.x = element_text(vjust = 0.5, hjust=1))
+    )
+  }else{
+    p2+
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  }
+  
+}
+
+#Plots all values, and shows missing and valid values as proportions
+plotAllValues <- function(data){
+  # data <- cervical_data #TOREMOVE
+  missing <- apply(data, 2, function(x){sum(x=='?')})
+  valid <- apply(data, 2, function(x){sum(x!='?')})
+  value_df <- data.frame(colNames=names(missing), missing = missing[], valid = valid[] )
+  row.names(value_df) <- NULL #remove rownames
+  
+  p1 <- value_df %>%
+    #sort the names column by missing values, for ggplot
+    mutate(colNames = reorder(colNames, missing)) %>%
+    pivot_longer(c(missing, valid), values_to = "Values", names_to = "ValueType") %>%
+    ggplot(aes(x=colNames, y=Values, fill=ValueType))+
+    geom_bar(position="stack", stat="identity")+
+    coord_flip()+
+    labs(fill="Value Type", x = "Attributes", y="#Values")+
+    scale_fill_brewer(palette = "Set1")+
+    ggtitle("Proportion of missing values")
+  
+  
+  p2 <- plotMissingValues(value_df, FALSE)
+  
+  #axis='l' for aligning graphs left side, but warning still shows #TOREMOVE
+  # ggarrange( p1, p2, ncol=1, nrow = 2, heights = c(100, 100), align="v", axis="l")
+  ggarrange( p1, p2, ncol=1, nrow = 2, heights = c(120, 120), align="v")
+}
+```
+
+```{r Check missing and Zero values}
+plotAllValues(breast_cancer)
+#Using this plot we can see that only bareNuclei has 16 missing values
+
+apply(breast_cancer, 2, function(x){sum(x=='?')})
+#bareNuclei has 16 missing values which we must remove for our ML analyses
+
+#Remove missing values
+breast_cancer = subset(breast_cancer, bareNuclei !='?')
+
+#Validation check
+breast_cancer %>% filter(bareNuclei == '?')
+
+#No zero values
+apply(breast_cancer, 2, function(x){sum(x==0)})
+```
+
+```{r Convert bareNuclei to int}
+breast_cancer$bareNuclei = as.integer(breast_cancer$bareNuclei)
+```
+
+```{r Factor class column}
+unique(breast_cancer$class)
+breast_cancer$class = factor(breast_cancer$class,levels = c('2', '4'), labels = c('B', 'M'))
+levels(breast_cancer$class)
+head(breast_cancer)
+```
+
+#Exploratory Data Analysis
+```{r Util to plot numerical variables, fig.width=10}
+plotDistributionWithClass <-function(db, target, xTitle){
+  p1 <- db %>% 
+    ggplot(aes(x=.data[[target]], fill=class))+
+    geom_bar()+
+    labs(subtitle=paste("Distribution of", tolower(xTitle)),
+         x = xTitle, 
+         fill="Classification")
+  
+  #boxplot
+  p2 <- ggplot(db, aes(y= .data[[target]], x = class, fill=class))+
+    geom_boxplot(show.legend = F)+
+    labs(subtitle=paste("Classification w.r.t", tolower(xTitle)), 
+         x = "Classification",
+         y= xTitle)
+  
+  ggarrange(p1, p2, nrow=1, ncol=2, align="h", heights = c(1,1), common.legend = T, legend = "bottom")
+}
+```
+
+```{r Boxplot of a numerical var, fig.width=5}
+plotBox <-function(db, target, yTitle){
+  ggplot(db, aes(y= .data[[target]]))+
+    geom_boxplot()+
+    show_mean_crossbar+
+    labs(subtitle=paste("Distribution of", tolower(yTitle)), 
+         y= yTitle)
+}
+
+```
+
+```{r Density plot}
+plotDensity <- function(db, target, xTitle){
+  db %>% 
+    ggplot(aes(x=.data[[target]], fill=class))+
+    geom_density(position="stack")+
+    labs(
+      subtitle = paste("Density distribution of", tolower(xTitle)), 
+      x = xTitle, 
+      fill="Classification")
+}
+```
+
+```{r Plot without classification}
+plotDistributionNoClass<- function(db, target, xTitle){
+  p1 <- plotBox(db, target, xTitle)
+  p2 <- plotDensity(db, target, xTitle)
+  ggarrange(p1, p2, nrow=2, ncol=1)
+}
+```
+
+```{r Util to transform}
+# sqrtTransform <- function(db, x, newColName){
+#   return (db %>% 
+#       mutate({{newColName}} := sqrt(get(x))) %>% 
+#     # mutate({{newColName}} := scale(get(x), center = T, scale=T))
+#       select(-{{x}})
+#   )
+# }
+# 
+# mutateToLog <- function(db, x, newColName){
+#   return (db %>% 
+#       mutate({{newColName}} := log2(get(x))) 
+#       # select(-{{x}})
+#   )
+# }
+
+transformCol <- function(db, x, newColName, func){
+  return (db %>% 
+      mutate({{newColName}} := round(func(get(x)), 2)) %>%
+      select(-{{x}})
+  )
+}
+```
+
+```{r Creating a named list for column names}
+createListColnames <- function(db){
+  columnNames = colnames(db)
+  cNames <- setNames(as.list(columnNames), columnNames)
+  return(cNames)
+}
+
+cNames <- createListColnames(breast_cancer)
+cNames$clumpThickness
+```
+
+```{r Overview of column distributions}
+show_mean_crossbar <- stat_summary(fun=mean, aes(x=0), geom="point", shape=3, size=3, col="red")
+
+all_cols <- breast_cancer %>% 
+  pivot_longer(c(-class,-sampleCodeNumber), names_to="Features", values_to = "Values")
+
+#with class
+all_cols %>% 
+  ggplot(aes(x=class, y=Values, fill=class))+
+    geom_boxplot()+
+    facet_wrap(~Features, scales="free")+
+  ggtitle("Distribution curves for all attributes w.r.t tumor classification")
+
+#since boxplot shows lot of lower end values, let us see how many lower end values are present in our dataset for the attributes which have many outliers
+breast_cancer %>% 
+  filter(class=='B') %>%
+  select(bareNuclei, marginalAdhesion, normalNucleoli, singleEpiCellSize, uniformityCellSize) %>% 
+  apply(2, function(x){sum(x <=5)})
+
+#Plots for all values, without class differentiation
+#density plot to see the shape of the distribution
+all_cols %>% 
+  ggplot(aes(x=Values))+
+    geom_density()+
+    facet_wrap(~Features, scales="free")+
+  ggtitle("Distribution curves for all attributes")
+
+#bar
+all_cols %>% 
+  ggplot(aes(x=Values))+
+    geom_bar()+
+    facet_wrap(~Features, scales="free")+
+  ggtitle("Count distribution for all attributes")
+
+#boxplot distribution see range, min, max and mean of values
+all_cols %>% 
+  ggplot(aes(y=Values))+
+    geom_boxplot()+
+    stat_summary(fun=mean, aes(x=0), geom="point", shape=3, size=3, col="red")+
+    facet_wrap(~Features, scales="free")+
+  ggtitle("Range distribution for all attributes")
+```
+
+As we can see in the first plot by class, there are a lot of outliers in all the columns except for bland chromatin and clump thickness. When looking at the data closely for only benign tumors, it shows that most samples have lower values (<5), and hence other values appear as outliers.
+When looking at the last 3 plots of overall distribution of values, we see that only mitoses column has considerable number of outliers. We will handle this when it we do ML analysis so as not to skew our model predictions due to these outliers.
+Let us sort mitoses values to further examine its outliers
+
+```{r Sorting to see mitoses outliers}
+breast_cancer %>% 
+  select(mitoses) %>%
+  arrange(mitoses) %>% 
+  count(mitoses)
+```
+This shows that values of 5-8 are outliers as there are very few data points with those values.
+
+```{r Util to check normality, fig.width=15}
+checkNormality <- function(.data, variable){
+  dataCol <- .data[[variable]]
+  #shapiro test
+  sp<-shapiro.test(dataCol)
+  paste('Raw data', sp)
+  #density graph
+  p1 <- ggplot(.data, aes_string(x=dataCol)) +
+    geom_density()
+  
+  #qq plot
+  p2 <- ggplot(.data, aes_string(sample=dataCol))+
+    stat_qq() +
+    stat_qq_line() +
+    labs(x ="theoretical",
+         subtitle=paste(variable, "Shapiro:", round(sp$p.value, 3)))  
+  plot_grid(p1, p2)
+  
+  #Log transformation
+  #shapiro test
+  sp<-shapiro.test(log2(dataCol))
+  
+  #density graph
+  p3 <- .data %>%
+    mutate(logVar = log2(get(variable))) %>%
+    ggplot(aes(x=logVar)) +
+    geom_density()
+
+  #qq plot
+  p4 <- .data %>%
+    mutate(logVar = log2(get(variable))) %>%
+    ggplot(aes(sample=logVar))+
+    stat_qq() +
+    stat_qq_line() +
+    labs(x ="theoretical",
+         subtitle=paste("Log2 transformed:", variable, "Shapiro:", round(sp$p.value, 3)))
+
+  #sqrt transformation
+  sp<-shapiro.test(sqrt(dataCol))
+  #density graph
+  p5 <- .data %>%
+    mutate(sqrtVar = sqrt(get(variable))) %>%
+    ggplot(aes(x=sqrtVar)) +
+    geom_density()
+
+  #qq plot
+  p6 <- .data %>%
+    mutate(sqrtVar = sqrt(get(variable))) %>%
+    ggplot(aes(sample=sqrtVar))+
+    stat_qq() +
+    stat_qq_line() +
+    labs(x ="theoretical",
+         subtitle=paste("Sqrt transformed:", variable, "Shapiro:", round(sp$p.value, 3)))
+
+  plot <- ggarrange(p1, p2, p3, p4, p5, p6, nrow=3, ncol=2)
+  annotate_figure(plot, top=text_grob(variable))
+}
+```
+
+```{r Normality check for all attributes}
+
+# debug(checkNormality)
+# undebug(checkNormality)
+#--FOR LOOP NOT WORKING
+# names(cNames)
+# excluded <- cNames[-c(1,11)]
+# for(cN in excluded){
+#   paste("Test", cN)
+#   breast_cancer %>%
+#     checkNormality(cN)
+# }
+
+#let us do the normality checks for the rest of the features
+breast_cancer %>% 
+  checkNormality(cNames$clumpThickness)
+
+breast_cancer %>% 
+  checkNormality(cNames$marginalAdhesion)
+
+breast_cancer %>% 
+  checkNormality(cNames$uniformityCellSize)
+
+breast_cancer %>% 
+  checkNormality(cNames$uniformityCellShape)
+
+breast_cancer %>% 
+  checkNormality(cNames$singleEpiCellSize)
+
+breast_cancer %>% 
+  checkNormality(cNames$bareNuclei)
+
+breast_cancer %>% 
+  checkNormality(cNames$blandChromatin)
+
+breast_cancer %>% 
+  checkNormality(cNames$normalNucleoli)
+
+breast_cancer %>% 
+  checkNormality(cNames$mitoses)
+```
+
+Looking at the distribution of various columns, we can see that most of our column data values are not normally distributed. We will keep this aspect in mind when designing ML models.
+We also see clump thickness looks better after transformations. Let us transform these columns. For single epithelial cell size, though it shifts more to center, original value distribution looks like a normal distribution with a tail, so we will keep it untransformed.
+
+```{r Transformations}
+#even though shapiro test says that sqrt() distribution is not normal, density plot and qqplot show it to be fairly normal. Since shapiro test is highly sensitive, we will ignore shapiro test and proceed with transforming the column
+
+#So let us do a square root transformation of clump thickness
+bc_transformed <- transformCol(breast_cancer, cNames$clumpThickness, 'clumpThickness_sq', sqrt)
+
+#For single epithelial cell size, it looks like a normal distribution with a tail, so we will keep it as is. #TOREMOVE
+# bc_transformed <- transformCol(bc_transformed, cNames$singleEpiCellSize, 'singleEpiCellSize_log', log2)
+
+cNames <- createListColnames(bc_transformed) #update the list
+```
+
+Let us look at the few features in detail.
+
+```{r Distribution of clump thickness, fig.width=10}
+
+plotDistributionWithClass(bc_transformed, cNames$clumpThickness_sq, "Clump Thickness")
+plotDistributionNoClass(bc_transformed, cNames$clumpThickness_sq, "Clump Thickness")
+
+
+#Let us do a stat test to confirm the observation in the box plot
+#To do that, first we need to check normality of the column
+# checkNormality(breast_cancer, cNames$clumpThickness)
+#log of clump thickness slightly more normal than raw data : confirm with Dr. Cox
+
+#TOREMOVE
+# dummy <- scaleData(breast_cancer, cNames$clumpThickness, 'sClump') #doesn't look different at all, which makes sense since scaling just centers it around 0, log will differ
+# checkNormality(dummy, 'sClump')
+#let us leave the column values as it is till confirmed from Dr. Cox #TOREMOVE
+
+t.test(clumpThickness_sq~class, data = bc_transformed) #p-value < 2.2e-16
+```
+
+As we can see from the density plot, more malignant tumors have higher values of clump thickness whereas more benign tumors mostly have lower values of clump thickness. Looking at the box plot, we can see there is an appreciable amount of difference in the mean value of clump thickness for both the class of tumors.
+With a significant p-value in t-test, we can say there is a significant difference in clump thickness values of Benign vs Malignant tumors and hence clump thickness could be a potential contributor to detecting malignant cancers.
+
+```{r Distribution of Marginal Adhesion, fig.width=10}
+name = "Marginal Adhesion"
+plotDistributionWithClass(bc_transformed, cNames$marginalAdhesion, name)
+plotDistributionNoClass(bc_transformed, cNames$marginalAdhesion, name)
+
+
+#Still not normal, let it be
+ # bc_transformed %>% 
+ #    mutate(varInv = 1/marginalAdhesion) %>%
+ #    ggplot(aes(x=varInv)) +
+ #    geom_density()
+
+```
+
+Boxplot and bar plot figures show that most of the samples have low adhesion values.
+We can see a clear distinction in the boxplot that malignant cancers seem to have a higher mean value of adhesion compared to benign tumors.
+Also, in the boxplot there a quite a few outliers in the marginal adhesion values and those are mostly for benign tumor samples. From both bar and density plot we can see that malignant tumors are distributed throughout the entire range of values for marginal adhesion, whereas benign tumors mostly have very low marginal adhesion values. 
+Let us see these values sorted to analyze them further
+
+```{r Outliers in marginal adhesion}
+bc_transformed %>% 
+  select(marginalAdhesion) %>%
+  arrange(marginalAdhesion) %>% 
+  count(marginalAdhesion)
+```
+So maximum values are 1 for 392 samples, and the distribution looks fairly even for the rest of the samples. So we cannot say that there are certain outliers which are very far from the mean value. Outliers show up in the graph because almost 400 out of 700 samples having a single value, but that is expected since 65% of the class is benign tumors, so majority of the attribute values will be on the lower end.
+
+```{r Distribution of uniformity of cell shape}
+name = "Uniformity of cell shape"
+plotDistributionWithClass(bc_transformed, cNames$uniformityCellShape, name)
+plotDistributionNoClass(bc_transformed, cNames$uniformityCellShape, name)
+
+t.test(uniformityCellShape~class, data=bc_transformed) #significant, p-value < 2.2e-16 #PENDING-INTERPRETATION
+```
+
+```{r PENDING: Correlation with class}
+#plot correlations of variables with class
+#ASK DR. COX
+```
+
+```{r Correlation and Dendrogram}
+corrMatrix <- bc_transformed %>% 
+  select(-sampleCodeNumber, -class) %>% 
+  cor()
+
+# corrplot(corrMatrix, method = "square", type="lower")
+corrplot(corrMatrix, method = "pie", type="upper")
+
+hc <- hclust(dist(corrMatrix), method = "complete")
+plot(hc, main = "Dendrogram of attributes", xlab = "Correlation distance", col = "orange", hang = -200, sub="")
+
+# Adding labels to the branches
+rect.hclust(hc, k = 3, border = 2:10)
+```
+
+We can notice in the correlation matrix, that uniformity in cell shape and size correlate with most of the other variables (first 2 columns in the plot). They also correlate with each other pretty strongly ~0.9, so we must handle this before ML modelling.
+Clump thickness also correlates with most of the variables (bottom most row).
+Dendrogram shows us how similar or closely related the attributes are. As also seen in the correlation matrix, uniformity in cell shape and size are closely related. Marginal adhesion, bare nuclei, and bland chromatin shows similar relation in the dendrogram, being more related compared to others.
+As evident from both corrplot and dendrogram, mitoses has the least correlation with other variables.
+
+Since the dimensionality of our dataset is not very high, and has only 9 attributes, we do not need to do dimension reduction. So we will proceed with making ML models for our data.
+
+#Machine learning models
+For our logistic regression, we will make glm as well as random forest models.
+Let us first check the correlation of various continuous variables again with graphs
+
+## Getting data ready for the model
+```{r Correlations, fig.width=15}
+bc_transformed %>%
+  select(-sampleCodeNumber) %>% 
+  ggpairs(aes(color=class), progress=FALSE)
+```
+
+Seeing the correlations, we can see that the uniformity in cell shape and size is very strongly correlated, and we should remove one of these variables to proceed with our ML model.
+Also note that correlation of degree of alignancy of all the variables is high except clump thickness, which tells us that degree of malignancy might be a good representation of the variables contribution.
+Note, that many of our features were not normally distributed, and cannot be transformed so we will proceed with them and this will be a caveat to our models.
+Let us now center our data.
+
+```{r Centering the data}
+db_c <- bc_transformed %>%
+  select(-uniformityCellShape, -sampleCodeNumber) %>% #removing cell shape column #TOFIX, can also remove it before making the model
+  #this centers the data around the mean by subtracting it from the mean 
+  mutate(across(where(is.numeric), ~.-mean(.)))
+```
+
+```{r Splitting the dataset }
+set.seed(137)
+dim(db_c) #682x12
+#let us keep 1/3 data for testing: ~230
+test_rows <- sample(1: dim(db_c)[1], 230)
+
+db_test <- db_c[test_rows, ]
+db_train <- db_c[-test_rows, ]
+
+#Add Test/Train symbol to original dataset
+db_c$Type <- "train"
+db_c$Type[test_rows] <- "test"
+
+head(db_c)
+```
+
+```{r Visual inspection of the split, fig.width=10}
+#For continuous variables
+db_c %>% 
+  pivot_longer(c(-class, -Type), names_to = "measure", values_to ="values") %>% 
+  ggplot(aes(y=values, x=Type))+
+  facet_wrap(~measure, scales ="free")+
+  geom_boxplot()+
+  labs(title="Distribution of features in testing and training data.")
+```
+
+```{r Distribution of tumor class in the split}
+#For categorical variables
+db_c %>% 
+  ggplot(aes(x=Type, fill=class))+
+  geom_bar(position="fill")+
+  labs(title="Distribution of tumor class in testing and training data",
+       fill="Classification",
+       x="Type of data")
+
+```
+
+Visual inspection shows that distribution of all the continuouscolumns in our split dataset looks similar with no significant difference between the two.
+Let us do statistical inspection to confirm our observation.
+
+```{r Statistical inspection of correlation}
+#Factor the Type column
+db_c$Type = factor(db_c$Type)
+
+isFactor <- db_c %>%
+  sapply(is.factor)
+
+#the continuous data variables
+apply(db_c[, !isFactor], 2, function(x) t.test(x ~ db_c$Type)$p.value) #none with p<0.05 -> not significant
+
+#the categorical variables: class, Type
+apply(db_c[, isFactor], 2, function(x) chisq.test(x, db_c$Type)$p.value) #none with p<0.05 -> not significant
+
+```
+
+Therefore, our statistical inspection shows us the same thing. We see no significant correlation between our test and training data, which confirms the variable distribution to be similar and our split decision is correct.
+
+We will now proceed with developing our logistic regression model.
+
+##Building models
+
+```{r Utility for making tabular performance params }
+class.summary <- function(y, pred, pred.prob){
+	tab <- table(y=y, pred=pred)                  # Confusion matrix
+	acc <- (sum(diag(tab))) / sum(tab)            # Accuracy rate   
+	mis <- (sum(tab) - sum(diag(tab)))/sum(tab)   # Misclassification Rate
+	
+	# Deviance
+	if(any(pred.prob == 0))
+		pred.prob[pred.prob == 0] <- 0.001
+	if(any(pred.prob == 1))
+		pred.prob[pred.prob == 1] <- 1 - 0.001        
+	dev <- -2*sum((y=="S")*log(pred.prob) + (1-(y=="S"))*log(1-pred.prob))
+	#sensitivity and specificity
+	#
+	conf <- tab             # extract confusion matrix
+	sens <- conf[2,2]/sum(conf[2,])           # sensitivity
+	speci <- conf[1,1]/sum(conf[1,])          # specificity
+	fp <- 1 - speci                           # false positive rate
+	fn <- 1 - sens                            # false negative rate
+	return(list(conf.tab=tab, acc=round(acc,3), missclass=round(mis,3), dev=round(dev,3), sens=round(sens,3), speci=round(speci,3), fPos=round(fp,3), fNeg=round(fn,3)))
+}
+```
+
+```{r Logistic regression model}
+
+db.glm <- glm(class ~ ., data = db_train , family = binomial)
+summary(db.glm)
+
+#Testing our model
+#Numerical probabilities
+db.pred.glm.p <- predict(db.glm, newdata = db_test, type = "response")
+hist(db.pred.glm.p)
+
+#Check distribution of B and M in test data
+db_test %>% 
+  count(class) #almost 67% are benign, and rest are malignant, hence our probability histogram has 2 peaks
+
+thresh_sick <- 0.6 #decide threshold based on histogram shape
+
+db.pred.glm.fp <- factor(db.pred.glm.p > thresh_sick, labels=c("B", "M"))
+
+#Table for performance parameters
+summary.db.pred.glm <- class.summary(y=db_test$class, pred=db.pred.glm.fp, pred.prob = db.pred.glm.p)
+
+#ROC curve
+plot_data <- data.frame(D=db_test$class, p=db.pred.glm.p)
+#ggplot 
+ggplot(plot_data, aes(d = D, m = p)) + 
+	geom_roc(n.cuts = 12) 
+
+#AUC
+a_glm <- auc(db_test$class, db.pred.glm.p)
+a_glm #99.7%
+
+lm_test <-c(unlist(summary.db.pred.glm[2:6]),AUC=a_glm)
+
+data.frame(lm_test)
+```
+
+Seeing the performance parameters, it has very high accuracy ~97%, very low missclassification ~0.03, but extremely high deviance ~1000.
+This indicates our model is predicting the class of the tumor correctly most of the times, but when it is mispredicting, it is getting it really wrong such that model prediction fit to the data is extremely deviated. This also reflects the imbalance in our dataset, with only 30% of the data being M class.
+Let us try to optimize this model.
+
+### Optimized Logistic regression
+```{r Optimized regression model}
+#Using step model to optimize the model created above
+set.seed(137)
+db.glm.optimized <- step(db.glm, scope=list(upper=db.glm, lower=~1, direction=c("both")), trace=FALSE)
+summary(db.glm.optimized)
+
+#Numerical probabilities
+db.pred.glm.optimized.p <- predict(db.glm.optimized, newdata = db_test, type = "response")
+hist(db.pred.glm.optimized.p)
+#Factored probabilities
+db.pred.glm.optimized.fp <- factor(db.pred.glm.optimized.p > thresh_sick, labels=c("H", "S"))
+
+#Table for performance parameters
+summary.db.pred.glm.optimized <- class.summary(y=db_test$class, pred=db.pred.glm.optimized.fp, pred.prob = db.pred.glm.optimized.p)
+
+#ROC curve
+plot_data <- data.frame(D=db_test$class, p=db.pred.glm.optimized.p)
+#ggplot 
+ggplot(plot_data, aes(d = D, m = p)) + 
+	geom_roc(n.cuts = 12) 
+
+#AUC
+a_op <- auc(db_test$class, db.pred.glm.optimized.p)
+a_op
+
+lm_optimized <-c(unlist(summary.db.pred.glm.optimized[2:6]),AUC=a_op)
+data.frame(lm_test, lm_optimized)
+
+#To compare 2 models
+anova(db.glm.optimized, db.glm, test = "Chisq")
+```
+
+Even though the optimization did not improve the model performance at all in terms of accuracy, deviance, or AUC, but it uses 1 variables less than the unoptimized model. So our optimized model performs the same and is a bit simpler.
+
+Let us try a random forest to see if we can figure out the variables in terms of their importance.
+
+
+```{r Random Forest, fig.width=15, fig.height=8}
+set.seed(137)
+#Make the model
+db.rf <- randomForest(class~., data=db_train, mtry=5, nodesize=3, importance=T, proximity=T, na.action=na.omit)
+summary(db.rf)
+
+varImpPlot(db.rf) 
+#Low contributor is mitoses
+
+```
+### Optimized Random Forest
+```{r Optimized Random Forest}
+set.seed(137)
+
+#Let us optimize the model by removing low contributors
+db.rf.optimized <- randomForest(class~.-mitoses, data=db_train, mtry=5, nodeSize =5, importance=T, proximity=T, na.action=na.omit)
+summary(db.rf.optimized)
+#Factored probabilities
+db.rf.optimized.fp <- predict(db.rf.optimized, newdata=db_test, type="response", aggregation="average")
+#Numerical probabilities
+db.rf.optimized.p <- predict(db.rf.optimized, newdata=db_test, type="prob", aggregation="average")[,2]#only need Sick Probabilities
+#ROC plot
+plot_data_rf <- data.frame(D=db_test$class, p=db.rf.optimized.p)
+#ggplot
+ggplot(plot_data_rf, aes(d = D, m = p)) +
+	geom_roc(n.cuts = 12)
+#Summary table
+sumry.db.rf.optimized <-class.summary(db_test$class, db.rf.optimized.fp, db.rf.optimized.p) #AUC
+a_rf_optimized <- auc(db_test$class, db.rf.optimized.p)
+
+rf_optimized <- c(unlist(sumry.db.rf.optimized[2:6]),AUC=a_rf_optimized) #81%
+
+data.frame(lm_test,lm_optimized, rf_optimized)
+```
+Random forest model looks much better without compromising a lot on accuracy, and other parameters.
+it reduces the deviance by almost 50%, bringing it down to 624. Deviance is still very high, so we will try to tweak some parameters to see if we can improve it.
+
+```{r Different mtry}
+#Let us try different mtry values to optimize
+set.seed(137)
+db.rf.mod <- randomForest(class~., data=db_train, mtry=4, nodesize=2, importance=T, proximity=T, na.action=na.omit)
+db.rf.mod.fp <- predict(db.rf.mod, newdata=db_test, type="response", aggregation="average")
+
+db.rf.mod.p <- predict(db.rf.mod, newdata=db_test, type="prob", aggregation="average")[,2]
+
+#ROC plot
+plot_data_rf_mod <- data.frame(D=db_test$class, p=db.rf.mod.p)
+#ggplot
+ggplot(plot_data_rf_mod, aes(d = D, m = p)) +
+	geom_roc(n.cuts = 12)
+
+sumry.db.rf.mod <-class.summary(db_test$class, db.rf.mod.fp, db.rf.mod.p) 
+a_rf_mod<-auc(db_test$class, db.rf.mod.p)
+
+rf_mod <- c(unlist(sumry.db.rf.optimized[2:6]),AUC=a_rf_mod)
+
+data.frame(lm_test,lm_optimized, rf_optimized, rf_mod)
+```
+
+Trying different values of mtry doesn't yield any benefit in terms of deviance.
+Let us try removing the outliers which we observed in our initial EDA, and see if our ML model shows an improvement
+
+#### Remove outliers and remake RF
+Seeing figure for boxplot distributions of all columns before in Chunk 14, we can notice that columns mitoses, normalNucleoi, singleEpiCellSize have quite a few outliers. Let us remove these and see if RF model improves.
+
+```{r Util to Check presence of outliers}
+#we will check whether there are outliers i.e. 3SD away from mean
+
+hasOutliers <- function(col){
+  mn <- mean(col)
+  sd <- sd(col)
+  sd_3 <- c(mn-3*sd, mn+3*sd)
+  
+  print(paste("Mean", round(mn, 2), "3SD range", round(sd_3, 2)))
+  #check if the data has values outside 3SD range
+  if(any(range(cleaned_data$normalNucleoli) %][% sd_3)){
+    return(T)
+  }
+  return(F)
+}
+```
+
+```{r Util to remove outliers}
+#Returns a new db with outliers removed
+removeOutliers <- function(.data, column){
+  colValues <- .data[[column]]
+  if(!hasOutliers(colValues)){
+    return(.data)
+  }
+  
+  # Calculate mean and standard deviation
+  mean_val <- mean(colValues)
+  sd_val <- sd(colValues)
+  
+  # Identify indices of outliers, ones which are greater than 3SD from mean
+  outlier_indices <- which(abs(colValues - mean_val) > (3 * sd_val))
+  print(outlier_indices)
+  print(.data[outlier_indices,])
+  
+  colName <- sym(column)
+  # print(.data %>%
+  #   arrange(!!colName) %>% 
+  #   count(!!colName))
+  
+  # Remove outliers
+  cleaned_data <- .data[-outlier_indices,]
+
+  # print(cleaned_data %>% 
+  #   arrange(!!colName) %>% 
+  #   count(!!colName))
+
+  return(cleaned_data)
+}
+```
+
+```{r Remove Mitoses outliers}
+#Mitoses
+cleaned_data <- removeOutliers(bc_transformed, cNames$mitoses)
+p1 <- plotDistributionNoClass(bc_transformed, cNames$mitoses, "Mitoses")
+p2 <- plotDistributionNoClass(cleaned_data, cNames$mitoses, "Mitoses")
+ggarrange(p1, p2, nrow=1, ncol=2, common.legend = T)
+
+```
+
+
+```{r Remove singleEpiCellSize outliers, fig.width=10}
+hasOutliers(cleaned_data$singleEpiCellSize)
+temp <- removeOutliers(cleaned_data, cNames$singleEpiCellSize)
+p1 <- plotDistributionNoClass(cleaned_data, cNames$singleEpiCellSize, "Single epithelial cell size")
+p2 <- plotDistributionNoClass(temp, cNames$singleEpiCellSize, "Single epithelial cell size")
+ggarrange(p1, p2, nrow=1, ncol=2, common.legend = T, legend = "top")
+
+cleaned_data <- temp
+```
+
+```{r Remove other outliers, fig.width=10}
+hasOutliers(cleaned_data$normalNucleoli) #NONE
+hasOutliers(cleaned_data$blandChromatin)  #NONE
+```
+Graphs after removal shows that the most distant points are now closer to the mean compared to before for Mitoses and Single Epithelial cell size values. There were no values beyond 3SD range for both normal nucleoli and bland chromatin columns.
+So we will build our RF model again.
+
+```{r Centering the data again}
+db_c <- cleaned_data %>%
+  select(-uniformityCellShape, -sampleCodeNumber) %>% #removing cell shape column #TOFIX, can also remove it before making the model
+  #this centers the data around the mean by subtracting it from the mean 
+  mutate(across(where(is.numeric), ~.-mean(.)))
+```
+
+```{r Splitting the dataset again}
+set.seed(137)
+dim(db_c) #631x12
+#let us keep 1/3 data for testing: ~190
+test_rows <- sample(1: dim(db_c)[1], 190)
+
+db_test <- db_c[test_rows, ]
+db_train <- db_c[-test_rows, ]
+
+#Add Test/Train symbol to original dataset
+db_c$Type <- "train"
+db_c$Type[test_rows] <- "test"
+
+head(db_c)
+```
+
+### Final Random Forest
+```{r Trying RF again}
+set.seed(137)
+
+#or: outlier removal
+db.rf.or <- randomForest(class~., data=db_train, mtry=5, nodeSize =5, importance=T, proximity=T, na.action=na.omit)
+summary(db.rf.or)
+#Factored probabilities
+db.rf.or.fp <- predict(db.rf.or, newdata=db_test, type="response", aggregation="average")
+#Numerical probabilities
+db.rf.or.p <- predict(db.rf.or, newdata=db_test, type="prob", aggregation="average")[,2]#only need Sick Probabilities
+#ROC plot
+plot_data_rf <- data.frame(D=db_test$class, p=db.rf.or.p)
+#ggplot
+ggplot(plot_data_rf, aes(d = D, m = p)) +
+	geom_roc(n.cuts = 12)
+#Summary table
+sumry.db.rf.or <-class.summary(db_test$class, db.rf.or.fp, db.rf.or.p) #AUC
+a_rf_or <- auc(db_test$class, db.rf.or.p)
+
+rf_or <- c(unlist(sumry.db.rf.or[2:6]),AUC=a_rf_or) #81%
+
+data.frame(lm_test,lm_optimized, rf_optimized, rf_or)
+
+```
+After removing all the outliers, the deviance dropped to ~412 and accuracy remained similar ~95.3%. Therefore, compared to our logistic regression model, this RF model is an improvement in deviance by 60% reduction from 1000 to 412.
+
+## Linear regression models
+In this project, along with logistic regression and random forest predictions for benign and malignant classess, I also aim to predict the degree of malignancy of a tumor. So we will create a new column which will contain continuous values of degree of malignancy of a tumor, which can then be divided on basis of a threshold to classify them as benign or malignant. #TODO check last statement 
+
+To calculate this degree of malignancy, I want to be able to use all the attributes which are contributing to it, i.e. all columns, therefore we will do dimension reduction to achieve this.
+Let us do a PCA on our dataset.
+
+```{r Utils to make PCA plots}
+getLabel <- function(n, variance){
+  paste0("PC", n,"(", scales::percent(variance), ")")
+}
+makePCPlots <- function(pca, color){
+  pca_x <- as.data.frame(pca$x)
+  pca_rot <- as.data.frame(pca$rotation)
+  variance<- summary(pca)$importance["Proportion of Variance", ]
+  # nPC <- dim(pca_x)[2]
+  
+  p12 <- ggplot(pca_x, aes(PC1, PC2, color = color))+
+    geom_point()+
+    labs(
+      x = getLabel(1, variance[1]),
+      y = getLabel(2, variance[2]),
+      color="Classification")+
+    theme(legend.position = "top")
+  
+  p34 <- ggplot(pca_x, aes(PC3, PC4, color = color))+
+    geom_point()+
+    labs(x = getLabel(3, variance[3]),
+         y = getLabel(4, variance[4]),
+         color="Classification")+
+    theme(legend.position = "top")
+  
+  p56 <- ggplot(pca_x, aes(PC5, PC6, color = color))+
+    geom_point()+
+    labs(x = getLabel(5, variance[5]),
+         y = getLabel(6, variance[6]),
+         color="Classification")+
+    theme(legend.position = "top")
+  
+  p78 <- ggplot(pca_x, aes(PC7, PC8, color = color))+
+    geom_point()+
+    labs(x = getLabel(7, variance[7]),
+         y = getLabel(8, variance[8]),
+         color="Classification")+
+    theme(legend.position = "top")
+  
+  p19 <- ggplot(pca_x, aes(PC2, PC9, color = color))+
+    geom_point()+
+    labs(x = getLabel(2, variance[2]),
+         y = getLabel(9, variance[9]),
+         color="Classification")+
+    theme(legend.position = "top")
+  
+  ggarrange(p12, p34, p56, p78, p19, nrow=2, ncol=3, common.legend = T, legend="top")
+}
+```
+
+```{r PCA dimension reduction}
+numeric_bc <- cleaned_data %>% 
+  select(-class,-sampleCodeNumber)
+pca <- prcomp(numeric_bc, scale. = T)
+summary(pca)
+makePCPlots(pca, cleaned_data$class)
+```
+
+```{r TOREMOVE: OLD: WITHOUT OUTLIER REMOVAL PCA dimension reduction}
+# numeric_bc <- bc_transformed %>% 
+#   select(-class,-sampleCodeNumber)
+# pca <- prcomp(numeric_bc, scale. = T)
+# summary(pca)
+# makePCPlots(pca, bc_transformed$class) #PC1 and PC2: 65% and 9%
+```
+
+```{r REMOVE: DUMMY TEST: Trying centroid in PC12 plot}
+pca_x <- as.data.frame(pca$x)
+variance<- summary(pca)$importance["Proportion of Variance", ]
+
+  pca_matrix <- pca$x[, 1:2]
+  malignant_cluster <- as.data.frame(pca_matrix) %>% filter(PC1 < -1.25)
+# centroids <- aggregate(cbind(PC1,PC2)~bc_transformed$class, pca_x, mean)
+centroid <- colMeans(malignant_cluster)
+centroid[["PC1"]]
+centroids <- data.frame(PC1=centroid[["PC1"]], PC2= centroid[["PC2"]])
+ggplot(pca_x, aes(PC1, PC2, color=bc_transformed$class))+
+    geom_point()+
+    geom_point(data=centroids, aes(x=PC1, y=PC2, color="red"), size=5)+
+    labs(
+      x = getLabel(1, variance[1]),
+      y = getLabel(2, variance[2]),
+      color="Classification")+
+    theme(legend.position = "top")
+
+```
+
+
+We can see that PC1 and PC2, explains the maximum variance(64% & 8% resp.) in the dataset. So if we take PC1, PC2 to be our variables of interest, they can explain around 72% of the total variance in our data.
+So we will calculate the distance of each datapoint in this PC plot to the centroid of benign cluster. So the farther a point is from that centroid, more chances of it being malignant, hence we call this distance degree of malignancy of a tumor.
+To find the benign cluster, we can look at the PC1-PC2 plot and notice, PC1 >1.25 is mostly benign cluster.
+
+```{r Util to plot centroid on PCA}
+plotCentroidOnPCA <- function(pca, color, centroid, thresh ){
+  # color <- bc_transformed$class
+  pca_x <- as.data.frame(pca$x)
+  variance<- summary(pca)$importance["Proportion of Variance", ]
+  
+  pca_matrix <- pca$x[, 1:2]
+  # malignant_cluster <- as.data.frame(pca_matrix) %>% filter(PC1 < thresh)
+  # 
+  # centroid <- colMeans(malignant_cluster)
+
+  centroid_df <- data.frame(PC1=centroid[["PC1"]], PC2= centroid[["PC2"]])
+  ggplot(pca_x, aes(PC1, PC2, color=color))+
+    geom_point()+
+    geom_point(data=centroid_df, aes(x=PC1, y=PC2, color="Centroid(Benign)"), size=5)+
+    labs(
+      x = getLabel(1, variance[1]),
+      y = getLabel(2, variance[2]),
+      color="Classification")+
+    theme(legend.position = "top")
+}
+```
+
+```{r Creating distance matrix}
+#Using PC1 and PC2
+pca_matrix <- pca$x[, 1:2]
+# centroid <- colMeans(matrix_data) #centroid of the entire dataset
+threshold_for_benign <- -1.25
+benign_cluster <- as.data.frame(pca_matrix) %>% filter(PC1 > threshold_for_benign)
+centroid <- colMeans(malignant_cluster) # centroid of malignant cluster, for points PC1<-1.25
+
+plotCentroidOnPCA(pca, cleaned_data$class, centroid, threshold_for_benign) #to see the location of centroid on PCA plot
+# distances <- round(sqrt(rowSums((matrix_data - centroid)^2)), 2)
+distances <- round(sqrt(rowSums(t(t(pca_matrix) - centroid)^2)),2)
+length(distances)
+# print(distances)
+cleaned_data$degreeOfMalignancy <- distances
+cNames <- createListColnames(cleaned_data)
+```
+
+```{r Plot of Degree of Malignancy}
+#Check number of B and M tumors
+cleaned_data %>% 
+  select(class) %>% 
+  count(class) #M: 191, B:440
+
+#Range of degree of malignancy
+range(cleaned_data$degreeOfMalignancy) #0.00 9.97
+
+#How many malignant cancers with high degree of malignancy
+cleaned_data %>% 
+  select(class, degreeOfMalignancy) %>% 
+  filter(class=='M') %>%
+  arrange(degreeOfMalignancy) %>% 
+  #just a view at how many malignant cancers have higher degree of malignancy
+  count(degreeOfMalignancy>=2) #True for 184 out of 191
+
+cleaned_data %>% 
+  select(class, degreeOfMalignancy) %>% 
+  arrange(degreeOfMalignancy) %>% 
+  filter(class== "B") %>%   #max value of B tumor's malignancy is is 5.21 which is ok
+  count(degreeOfMalignancy<2) #Most benign tumors, 425/440 are under 2 d.o.M (degree of malignancy)
+
+cleaned_data %>% 
+  select(class, degreeOfMalignancy) %>% 
+  arrange(degreeOfMalignancy) %>% 
+  filter(class== "M") #range of values: 0.4 to 9.97 for M tumors
+#ideally, I would like to count how many B or M cancers in 1-5 and how many in 5-10 
+#TODO
+
+#Let us plot the distribution of degree of malignancy over class
+# undebug(plotDistributionWithClass)
+plotDistributionWithClass(cleaned_data, cNames$degreeOfMalignancy, "Degree of Malignancy")
+plotDensity(cleaned_data, cNames$degreeOfMalignancy, "Degree of Malignancy")
+```
+
+### Building Linear regression model
+We will now make a linear regression model for degree of malignancy prediction.
+Let us use single epithelial cell size and clump thickness because they are fairly normally distributed.
+
+```{r Check Correlation}
+cor(cleaned_data$singleEpiCellSize, cleaned_data$clumpThickness_sq) #0.48
+cor(cleaned_data$blandChromatin, cleaned_data$bareNuclei) #0.66
+cor(cleaned_data$blandChromatin, cleaned_data$clumpThickness_sq) #0.51 #should select these 2
+```
+
+```{r Util to check linearity}
+checkLinearity <- function(data, input, output){
+  ggplot(data, aes(x=.data[[input]], y =.data[[output]])) +
+    geom_point() +
+    # the linear fit line
+    geom_smooth (method = "lm", aes(colour = "linear")) +
+    #the nonlinear fit line (loess)
+    geom_smooth(aes(colour = "loess")) +
+    scale_colour_manual("Line fit", breaks =c("linear", "loess"), values = c("blue", "lightgreen"))
+}
+```
+
+```{r Linearity check with Degree of Malignancy}
+
+checkLinearity(cleaned_data, cNames$bareNuclei, cNames$degreeOfMalignancy) #ok ok
+checkLinearity(cleaned_data, cNames$singleEpiCellSize, cNames$degreeOfMalignancy) #looks bad
+checkLinearity(cleaned_data, cNames$uniformityCellSize, cNames$degreeOfMalignancy) #looks ok
+checkLinearity(cleaned_data, cNames$blandChromatin, cNames$degreeOfMalignancy) #looks much better
+checkLinearity(cleaned_data, cNames$marginalAdhesion, cNames$degreeOfMalignancy)
+checkLinearity(cleaned_data, cNames$normalNucleoli, cNames$degreeOfMalignancy)
+checkLinearity(cleaned_data, cNames$mitoses, cNames$degreeOfMalignancy) #worst, no greenline
+checkLinearity(cleaned_data, cNames$clumpThickness_sq, cNames$degreeOfMalignancy) #much better!
+
+#clumpT, uniSize, and bland chromatin can be selected.
+```
+
+```{r Util to check homoscedasticity}
+checkHomoscedasticity <- function(residuals, fitValues){
+  dataH <- data.frame(resid = residuals, fitVal = fitValues)
+  
+  ggplot(dataH, aes(x= fitVal, y=resid))+
+    geom_point()+
+    geom_smooth(method="lm", aes(colour = "linear"))+
+    geom_smooth(method="loess", aes(colour = "loess"))+
+    geom_hline(aes(yintercept = 0), color="red")+
+    scale_colour_manual("Line fit", breaks =c("linear", "loess"), values = c("blue", "lightgreen") )
+  
+}
+```
+
+
+```{r Create model}
+model <- lm(degreeOfMalignancy~ clumpThickness_sq*blandChromatin*uniformityCellSize, data=cleaned_data)
+summary(model)
+```
+Summary of the model shows that 88.5% of the variance in the dataset is explained by our linear model, which is good.
+RSE is only 0.78 and all individual coefficients are significant along with interaction b/w clump thickness and bland chromatin and 3 interacting variables.
+p-value <0.05 tells us that model overall is significant.
+Let us check the homoscedasticity and vif score of our model.
+
+```{r check homoscedasticity}
+
+checkHomoscedasticity(model$residuals, model$fitted.values)
+```
+```{r check independence using vif}
+#if high, fix by standardizing the data.
+vif(model)
+```
+All vif scores are greater than 5, and very high so let us try to standardize the input variables.
+```{r standardize}
+db_std <- cleaned_data %>% 
+  select(clumpThickness_sq, blandChromatin, uniformityCellSize, degreeOfMalignancy) %>% 
+  mutate(stClumpThickness = clumpThickness_sq - mean(clumpThickness_sq), stBlandChromatin = blandChromatin - mean(blandChromatin), stUniformityCellSize = uniformityCellSize- mean(uniformityCellSize) )
+```
+```{r Recreate and check vif}
+model1 <- lm(degreeOfMalignancy~ stClumpThickness*stUniformityCellSize*stBlandChromatin, data=db_std)
+summary(model1)
+vif(model1) #almost all of them are under 5, some are around 6, which is acceptable.
+checkHomoscedasticity(model1$residuals, model1$fitted.values)
+```
+
+
+```{r Predict}
+#using predict function, see Lec-8 end
+#make new data, since there was not split done for this.
+#will have to make 3 columns for 3 variables, and whatever amounto f rows.
+cT <- sqrt(1)
+bC <- 1
+uCS <- 1
+newData <- data.frame(stUniformityCellSize = uCS, stClumpThickness = cT, stBlandChromatin = bC)
+pred <- predict.lm(model1, newdata = newData)
+pred
+#gives correct trend of predictions I guess
+```
+
+##Discussion of linear model pending.
+
