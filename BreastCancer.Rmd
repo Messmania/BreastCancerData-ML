@@ -4,7 +4,7 @@ author: "Monika Sahai"
 date: "`r Sys.Date()`"
 output: bookdown::html_document2
 ---
-#Introduction
+# Introduction
 In the U.S. and Canada, breast cancer is the most diagnosed cancer among women accounting for almost 25% of all the cancer cases. It is one of the leading causes of cancer-related deaths in the U.S.
 In this project, we will use the Original Wisconsin Breast Cancer dataset and analyze it.
 Goal of the project is to make machine learning models to predict the class of the tumor and its degree of malignancy.
@@ -87,7 +87,7 @@ data %>%
 
 All the values indicate a lower value being closest to benignancy and 10 being the most malignant.
 
-#Data cleaning and wrangling
+# Data cleaning and wrangling
 ```{r Rename columns}
 breast_cancer <- data %>% 
   rename( sampleCodeNumber =X1000025, clumpThickness = X5, uniformityCellSize = X1, uniformityCellShape = X1.1, marginalAdhesion  = X1.2, singleEpiCellSize = X2, bareNuclei = X1.3, blandChromatin = X3, normalNucleoli=X1.4, mitoses=X1.5, class=X2.1 )
@@ -194,21 +194,21 @@ levels(breast_cancer$class)
 # head(breast_cancer)
 ```
 
-#Exploratory Data Analysis
+# Exploratory Data Analysis
 ```{r Util to plot numerical variables, fig.width=10}
 #plots the distribution of variables in both bar and boxplot, colored by the class of the tumor
 plotDistributionWithClass <-function(db, target, xTitle, figNum){
   p1 <- db %>% 
     ggplot(aes(x=.data[[target]], fill=class))+
     geom_bar()+
-    labs(subtitle=paste0("Fig ", figNum, ". Distribution of ", tolower(xTitle), " w.r.t class"),
+    labs(subtitle=paste0("Fig. ", figNum, ". Distribution of ", tolower(xTitle), " w.r.t class"),
          x = xTitle, 
          fill="Classification")
   
   #boxplot
   p2 <- ggplot(db, aes(y= .data[[target]], x = class, fill=class))+
     geom_boxplot(show.legend = F)+
-    labs(subtitle=paste0("Fig ", figNum+1, ". Classification w.r.t ", tolower(xTitle)), 
+    labs(subtitle=paste0("Fig. ", figNum+1, ". Classification w.r.t ", tolower(xTitle)), 
          x = "Classification",
          y= xTitle)
   
@@ -241,7 +241,7 @@ plotDensity <- function(db, target, xTitle, figNum){
 plotDistributionNoClass<- function(db, target, xTitle, figNum){
   p1 <- plotBox(db, target, xTitle, figNum)
   p2 <- plotDensity(db, target, xTitle, figNum+1)
-  ggarrange(p1, p2, nrow=2, ncol=1, common.legend = T, legend="bottom")
+  ggarrange(p1, p2, nrow=1, ncol=2, common.legend = T, legend="bottom")
 }
 ```
 
@@ -279,7 +279,7 @@ all_cols %>%
   ggplot(aes(x=class, y=Values, fill=class))+
   geom_boxplot()+
   facet_wrap(~Features, scales="free")+
-  labs(subtitle="Fig 3. Distribution curves for all attributes w.r.t tumor classification")
+  labs(subtitle="Fig. 3. Distribution curves for all attributes w.r.t tumor classification")
 
 #since boxplot shows lot of lower end values in benign tumors, let us see how many lower end values are present in our dataset for the attributes which have many outliers like bareNuclei, marginalAdhesion,normalNucleoli, singleEpiCellSize, uniformityCellSize 
 breast_cancer %>% 
@@ -295,14 +295,14 @@ all_cols %>%
   ggplot(aes(x=Values))+
   geom_density()+
   facet_wrap(~Features, scales="free")+
-  labs(subtitle="Fig 4. Distribution curves for all attributes")
+  labs(subtitle="Fig. 4. Distribution curves for all attributes")
 
 #bar
 all_cols %>% 
   ggplot(aes(x=Values))+
   geom_bar()+
   facet_wrap(~Features, scales="free")+
-  labs(subtitle="Fig 5. Count distribution for all attributes")
+  labs(subtitle="Fig. 5. Count distribution for all attributes")
 
 #boxplot distribution see range, min, max and mean of values
 all_cols %>% 
@@ -310,7 +310,7 @@ all_cols %>%
   geom_boxplot()+
   stat_summary(fun=mean, aes(x=0), geom="point", shape=3, size=3, col="red")+
   facet_wrap(~Features, scales="free")+
-  labs(subtitle="Fig 6. Range distribution for all attributes")
+  labs(subtitle="Fig. 6. Range distribution for all attributes")
 ```
 
 As we can see in the Figure 3., there are a lot of outliers in all the columns except for bland chromatin and clump thickness but that is only for benign tumors. When looking at the data closely for only benign tumors, it shows that since these samples are benign tumors, most of these have lower values (<5) which is justified, and hence other values appear as outliers.
@@ -379,7 +379,7 @@ checkNormality <- function(.data, variable, figNum){
          subtitle=paste("Sqrt transformed: Shapiro:", round(sp$p.value, 3)))
   
   plot <- ggarrange(p1, p2, p3, p4, p5, p6, nrow=3, ncol=2)
-  annotate_figure(plot, top=text_grob(paste0("Fig ", figNum,". ", variable)))
+  annotate_figure(plot, top=text_grob(paste0("Fig. ", figNum,". ", variable)))
 }
 ```
 
@@ -463,7 +463,7 @@ bc_transformed %>%
 ```
 So maximum values are 1 for 392 samples, and the distribution looks fairly even for the rest of the samples. So we cannot say that there are certain outliers which are very far from the mean value. Outliers show up in the graph because almost 400 out of 700 samples having a single value, but that is expected since 65% of the tumors are benign in our dataset, so majority of the attribute values will be on the lower end. This also indicates that our ML model might be more biased towards benign tumors in its prediction.
 
-```{r Distribution of uniformity of cell shape}
+```{r Distribution of uniformity of cell shape, fig.width=10}
 name = "Uniformity of cell shape"
 plotDistributionWithClass(bc_transformed, cNames$uniformityCellShape, name, 21)
 plotDistributionNoClass(bc_transformed, cNames$uniformityCellShape, name, 22)
@@ -478,10 +478,10 @@ corrMatrix <- bc_transformed %>%
   select(-sampleCodeNumber, -class) %>% 
   cor()
 
-corrplot(corrMatrix, method = "pie", type="lower", title="Fig 23. Correlation heatmap/matrix", mar=c(0,0,2,0))
+corrplot(corrMatrix, method = "pie", type="lower", title="Fig. 23. Correlation heatmap/matrix", mar=c(0,0,2,0))
 
 hc <- hclust(dist(corrMatrix), method = "complete")
-plot(hc, main = "Fig 24. Dendrogram of attributes", xlab = "Correlation distance", col = "orange", hang = -200, sub="")
+plot(hc, main = "Fig. 24. Dendrogram of attributes", xlab = "Correlation distance", col = "orange", hang = -200, sub="")
 
 # Adding labels to the branches
 rect.hclust(hc, k = 3, border = 2:10)
@@ -494,16 +494,16 @@ As evident from both corrplot and dendrogram, mitoses has the least correlation 
 
 Since the dimensionality of our dataset is not very high, and has only 9 attributes, we do not need to do dimension reduction. So we will proceed with making ML models for our data.
 
-#Machine learning models
+# Machine learning models
 For our logistic regression, we will make glm as well as random forest models.
 Let us first check the correlation of various continuous variables again with graphs
 
 ## Getting data ready for the model
-```{r Correlations, fig.width=15}
+```{r Correlations, fig.width=10}
 bc_transformed %>%
   select(-sampleCodeNumber) %>% 
   ggpairs(aes(color=class), progress=FALSE)+
-  labs(title="Fig 25. Correlations")
+  labs(title="Fig. 25. Correlations")
 ```
 
 Seeing the correlations, we can see that the uniformity in cell shape and size is very strongly correlated, and we should remove one of these variables to proceed with our ML model.
@@ -541,7 +541,7 @@ db_c %>%
   ggplot(aes(y=values, x=Type))+
   facet_wrap(~measure, scales ="free")+
   geom_boxplot()+
-  labs(title="Fig 26. Distribution of features in testing and training data.")
+  labs(title="Fig. 26. Distribution of features in testing and training data.")
 ```
 
 ```{r Distribution of tumor class in the split}
@@ -549,7 +549,7 @@ db_c %>%
 db_c %>% 
   ggplot(aes(x=Type, fill=class))+
   geom_bar(position="fill")+
-  labs(subtitle="Fig 27. Distribution of tumor class in testing and training data",
+  labs(subtitle="Fig. 27. Distribution of tumor class in testing and training data",
        fill="Classification",
        x="Type of data")
 
@@ -579,7 +579,7 @@ Our statistical inspection shows us the same thing. We see no significant correl
 
 We will now proceed with developing our logistic regression model.
 
-##Building Logistic regression model
+## Building Logistic regression model
 
 ```{r Utility for making tabular performance params }
 class.summary <- function(y, pred, pred.prob){
@@ -613,7 +613,7 @@ summary(db.glm)
 
 #Numerical probabilities
 db.pred.glm.p <- predict(db.glm, newdata = db_test, type = "response")
-hist(db.pred.glm.p, main="Fig 28. Distribution of probabilities") #histogram shows 2 peaks, let us look into this further
+hist(db.pred.glm.p, main="Fig. 28. Distribution of probabilities") #histogram shows 2 peaks, let us look into this further
 
 #Check distribution of B and M in test data
 db_test %>% 
@@ -632,7 +632,7 @@ plot_data <- data.frame(D=db_test$class, p=db.pred.glm.p)
 #ggplot 
 ggplot(plot_data, aes(d = D, m = p)) + 
   geom_roc(n.cuts = 12)+
-  labs(subtitle="Fig 29. False positives and false negatives")
+  labs(subtitle="Fig. 29. False positives and false negatives")
 
 #AUC
 a_glm <- auc(db_test$class, db.pred.glm.p)
@@ -656,7 +656,7 @@ summary(db.glm.optimized)
 
 #Numerical probabilities
 db.pred.glm.optimized.p <- predict(db.glm.optimized, newdata = db_test, type = "response")
-hist(db.pred.glm.optimized.p, main="Fig 30. Distribution of probabilities")
+hist(db.pred.glm.optimized.p, main="Fig. 30. Distribution of probabilities")
 #Factored probabilities
 # db.pred.glm.optimized.fp <- factor(ifelse(db.pred.glm.optimized.p > thresh_sick, "H", "S"))
 db.pred.glm.optimized.fp <- factor(db.pred.glm.optimized.p > thresh_sick, labels=c("H", "S"))
@@ -669,7 +669,7 @@ plot_data <- data.frame(D=db_test$class, p=db.pred.glm.optimized.p)
 #ggplot 
 ggplot(plot_data, aes(d = D, m = p)) + 
   geom_roc(n.cuts = 12)+
-  labs(subtitle="Fig 31. False positives and false negatives")
+  labs(subtitle="Fig. 31. False positives and false negatives")
 
 #AUC
 a_op <- auc(db_test$class, db.pred.glm.optimized.p)
@@ -693,7 +693,7 @@ set.seed(137)
 db.rf <- randomForest(class~., data=db_train, mtry=5, nodesize=3, importance=T, proximity=T, na.action=na.omit)
 summary(db.rf)
 
-varImpPlot(db.rf, main="Fig 32. Estimate of variable importance") 
+varImpPlot(db.rf, main="Fig. 32. Estimate of variable importance") 
 #Lowest contributor is mitoses, and other low contributors are marginal adhesion, single epi cell size.
 
 ```
@@ -716,7 +716,7 @@ plot_data_rf <- data.frame(D=db_test$class, p=db.rf.optimized.p)
 #ggplot
 ggplot(plot_data_rf, aes(d = D, m = p)) +
   geom_roc(n.cuts = 12)+
-  labs(subtitle="Fig 33. False positives and false negatives")
+  labs(subtitle="Fig. 33. False positives and false negatives")
 
 #Summary table
 sumry.db.rf.optimized <-class.summary(db_test$class, db.rf.optimized.fp, db.rf.optimized.p) #AUC
@@ -743,7 +743,7 @@ plot_data_rf_mod <- data.frame(D=db_test$class, p=db.rf.mod.p)
 #ggplot
 ggplot(plot_data_rf_mod, aes(d = D, m = p)) +
   geom_roc(n.cuts = 12)+
-  labs(subtitle="Fig 34. False positives and false negatives")
+  labs(subtitle="Fig. 34. False positives and false negatives")
 
 sumry.db.rf.mod <-class.summary(db_test$class, db.rf.mod.fp, db.rf.mod.p) 
 a_rf_mod<-auc(db_test$class, db.rf.mod.p)
@@ -767,7 +767,7 @@ hasOutliers <- function(.data, col){
   sd <- sd(col)
   sd_3 <- c(mn-3*sd, mn+3*sd)
   
-  print(paste("Mean", round(mn, 2), "3SD range", round(sd_3[1], 2), round(sd_3[2], 2) ))
+  # print(paste("Mean", round(mn, 2), "3SD range", round(sd_3[1], 2), round(sd_3[2], 2) ))
   #check if the data has values outside 3SD range
   if(any(range(.data$normalNucleoli) %][% sd_3)){
     return(T)
@@ -1035,10 +1035,10 @@ cleaned %>%
   filter(class== "B") %>%   #max value of B tumor's malignancy is is 5.21 which is ok
   count(degreeOfMalignancy<2) #Most benign tumors, 425/440 are under 2 d.o.M (degree of malignancy)
 
-cleaned %>% 
-  select(class, degreeOfMalignancy) %>% 
-  arrange(degreeOfMalignancy) %>% 
-  filter(class== "M") #range of values: 0.4 to 9.97 for M tumors
+# cleaned %>% 
+#   select(class, degreeOfMalignancy) %>% 
+#   arrange(degreeOfMalignancy) %>% 
+#   filter(class== "M") #range of values: 0.4 to 9.97 for M tumors
 
 #Let us plot the distribution of degree of malignancy over class
 plotDistributionWithClass(cleaned, cNames$degreeOfMalignancy, "Degree of Malignancy", 41)
@@ -1123,6 +1123,7 @@ Let us check the homoscedasticity and vif score of our model.
 ```{r check homoscedasticity}
 checkHomoscedasticity(linear_model$residuals, linear_model$fitted.values, 51)
 ```
+
 Our model overall shows a good linear fit due to nearly equal up/down variations around the linear line.
 
 ```{r check independence using vif}
@@ -1143,6 +1144,7 @@ summary(lm_centered)
 vif(lm_centered) #all of them are under 5 now.
 checkHomoscedasticity(lm_centered$residuals, lm_centered$fitted.values, 52)
 ```
+
 Now all the vif scores are under 5. Also, note that our linear model has improved with a tighter fit around the linear line after we centered the data.
 
 ```{r Splitting the dataset-3}
@@ -1187,8 +1189,10 @@ ggplot(db_test_lm, aes(x = db_test_lm$degreeOfMalignancy , y = pred_dom)) +
   scale_colour_manual("Line fit", breaks =c("linear", "loess"), values = c("blue", "lightgreen") )+
   labs(subtitle="Fig. 54. Linear regression model predictions for degree of malignancy")
 ```
+
 As we can see from the graph, our predictions are fairly similar to the actual values of degree of malignancy. Therefore our linear model performs well and predicts the degree of malignancy in the correct trend as expected.
 
 # Conclusion
 Hence, using the machine learning analysis, we were able to achieve a 96% accurate random forest and a well performing linear model explaining 89% variance in our dataset which enabled us to efficiently predict both the class and degree of malignancy of a tumor respectively.
+We also need to keep in mind that most of our variables were not normally distributed so our models may not be entirely accurate and might not more normally distributed data points to get a more accurate picture of the predictions.
 
