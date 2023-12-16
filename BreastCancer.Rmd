@@ -46,15 +46,11 @@ This project aims to speed up the diagnosis of breast cancer by utilizing ML to 
 ```{r Library activation and Data loading}
 #Activation
 library(ggpubr)
-# library(broom)
 library(GGally)
 library(car)
 library(pROC)
 library(plotROC)
-# library(e1071)
-# library(ipred)
 library(randomForest)
-# library(greybox)
 
 library(tidyverse)
 library(cowplot)
@@ -253,8 +249,8 @@ plotDistributionNoClass<- function(db, target, xTitle, figNum){
 #generic function to transform the column by passing the type of transformation
 transformCol <- function(db, orig, newColName, func){
   return (db %>% 
-      mutate({{newColName}} := round(func(get(orig)), 2)) %>%
-      select(-{{orig}})
+            mutate({{newColName}} := round(func(get(orig)), 2)) %>%
+            select(-{{orig}})
   )
 }
 ```
@@ -281,8 +277,8 @@ all_cols <- breast_cancer %>%
 #with class
 all_cols %>% 
   ggplot(aes(x=class, y=Values, fill=class))+
-    geom_boxplot()+
-    facet_wrap(~Features, scales="free")+
+  geom_boxplot()+
+  facet_wrap(~Features, scales="free")+
   labs(subtitle="Fig 3. Distribution curves for all attributes w.r.t tumor classification")
 
 #since boxplot shows lot of lower end values in benign tumors, let us see how many lower end values are present in our dataset for the attributes which have many outliers like bareNuclei, marginalAdhesion,normalNucleoli, singleEpiCellSize, uniformityCellSize 
@@ -297,23 +293,23 @@ breast_cancer %>%
 #density plot to see the shape of the distribution
 all_cols %>% 
   ggplot(aes(x=Values))+
-    geom_density()+
-    facet_wrap(~Features, scales="free")+
+  geom_density()+
+  facet_wrap(~Features, scales="free")+
   labs(subtitle="Fig 4. Distribution curves for all attributes")
 
 #bar
 all_cols %>% 
   ggplot(aes(x=Values))+
-    geom_bar()+
-    facet_wrap(~Features, scales="free")+
+  geom_bar()+
+  facet_wrap(~Features, scales="free")+
   labs(subtitle="Fig 5. Count distribution for all attributes")
 
 #boxplot distribution see range, min, max and mean of values
 all_cols %>% 
   ggplot(aes(y=Values))+
-    geom_boxplot()+
-    stat_summary(fun=mean, aes(x=0), geom="point", shape=3, size=3, col="red")+
-    facet_wrap(~Features, scales="free")+
+  geom_boxplot()+
+  stat_summary(fun=mean, aes(x=0), geom="point", shape=3, size=3, col="red")+
+  facet_wrap(~Features, scales="free")+
   labs(subtitle="Fig 6. Range distribution for all attributes")
 ```
 
@@ -355,7 +351,7 @@ checkNormality <- function(.data, variable, figNum){
     mutate(logVar = log2(get(variable))) %>%
     ggplot(aes(x=logVar)) +
     geom_density()
-
+  
   #qq plot
   p4 <- .data %>%
     mutate(logVar = log2(get(variable))) %>%
@@ -364,7 +360,7 @@ checkNormality <- function(.data, variable, figNum){
     stat_qq_line() +
     labs(x ="theoretical",
          subtitle=paste("Log2 transformed: Shapiro:", round(sp$p.value, 3)))
-
+  
   #sqrt transformation
   sp<-shapiro.test(sqrt(dataCol))
   #density graph
@@ -372,7 +368,7 @@ checkNormality <- function(.data, variable, figNum){
     mutate(sqrtVar = sqrt(get(variable))) %>%
     ggplot(aes(x=sqrtVar)) +
     geom_density()
-
+  
   #qq plot
   p6 <- .data %>%
     mutate(sqrtVar = sqrt(get(variable))) %>%
@@ -381,14 +377,13 @@ checkNormality <- function(.data, variable, figNum){
     stat_qq_line() +
     labs(x ="theoretical",
          subtitle=paste("Sqrt transformed: Shapiro:", round(sp$p.value, 3)))
-
+  
   plot <- ggarrange(p1, p2, p3, p4, p5, p6, nrow=3, ncol=2)
   annotate_figure(plot, top=text_grob(paste0("Fig ", figNum,". ", variable)))
 }
 ```
 
 ```{r Normality check for all attributes}
-
 #let us do the normality checks for the rest of the features
 breast_cancer %>% 
   checkNormality(cNames$clumpThickness, 7)
@@ -588,24 +583,24 @@ We will now proceed with developing our logistic regression model.
 
 ```{r Utility for making tabular performance params }
 class.summary <- function(y, pred, pred.prob){
-	tab <- table(y=y, pred=pred)                  # Confusion matrix
-	acc <- (sum(diag(tab))) / sum(tab)            # Accuracy rate   
-	mis <- (sum(tab) - sum(diag(tab)))/sum(tab)   # Misclassification Rate
-	
-	# Deviance
-	if(any(pred.prob == 0))
-		pred.prob[pred.prob == 0] <- 0.001
-	if(any(pred.prob == 1))
-		pred.prob[pred.prob == 1] <- 1 - 0.001        
-	dev <- -2*sum((y=="S")*log(pred.prob) + (1-(y=="S"))*log(1-pred.prob))
-	#sensitivity and specificity
-	#
-	conf <- tab             # extract confusion matrix
-	sens <- conf[2,2]/sum(conf[2,])           # sensitivity
-	speci <- conf[1,1]/sum(conf[1,])          # specificity
-	fp <- 1 - speci                           # false positive rate
-	fn <- 1 - sens                            # false negative rate
-	return(list(conf.tab=tab, acc=round(acc,3), missclass=round(mis,3), dev=round(dev,3), sens=round(sens,3), speci=round(speci,3), fPos=round(fp,3), fNeg=round(fn,3)))
+  tab <- table(y=y, pred=pred)                  # Confusion matrix
+  acc <- (sum(diag(tab))) / sum(tab)            # Accuracy rate   
+  mis <- (sum(tab) - sum(diag(tab)))/sum(tab)   # Misclassification Rate
+  
+  # Deviance
+  if(any(pred.prob == 0))
+    pred.prob[pred.prob == 0] <- 0.001
+  if(any(pred.prob == 1))
+    pred.prob[pred.prob == 1] <- 1 - 0.001        
+  dev <- -2*sum((y=="S")*log(pred.prob) + (1-(y=="S"))*log(1-pred.prob))
+  #sensitivity and specificity
+  #
+  conf <- tab             # extract confusion matrix
+  sens <- conf[2,2]/sum(conf[2,])           # sensitivity
+  speci <- conf[1,1]/sum(conf[1,])          # specificity
+  fp <- 1 - speci                           # false positive rate
+  fn <- 1 - sens                            # false negative rate
+  return(list(conf.tab=tab, acc=round(acc,3), missclass=round(mis,3), dev=round(dev,3), sens=round(sens,3), speci=round(speci,3), fPos=round(fp,3), fNeg=round(fn,3)))
 }
 ```
 
@@ -636,7 +631,7 @@ summary.db.pred.glm <- class.summary(y=db_test$class, pred=db.pred.glm.fp, pred.
 plot_data <- data.frame(D=db_test$class, p=db.pred.glm.p)
 #ggplot 
 ggplot(plot_data, aes(d = D, m = p)) + 
-	geom_roc(n.cuts = 12)+
+  geom_roc(n.cuts = 12)+
   labs(subtitle="Fig 29. False positives and false negatives")
 
 #AUC
@@ -673,7 +668,7 @@ summary.db.pred.glm.optimized <- class.summary(y=db_test$class, pred=db.pred.glm
 plot_data <- data.frame(D=db_test$class, p=db.pred.glm.optimized.p)
 #ggplot 
 ggplot(plot_data, aes(d = D, m = p)) + 
-	geom_roc(n.cuts = 12)+
+  geom_roc(n.cuts = 12)+
   labs(subtitle="Fig 31. False positives and false negatives")
 
 #AUC
@@ -720,7 +715,7 @@ db.rf.optimized.p <- predict(db.rf.optimized, newdata=db_test, type="prob", aggr
 plot_data_rf <- data.frame(D=db_test$class, p=db.rf.optimized.p)
 #ggplot
 ggplot(plot_data_rf, aes(d = D, m = p)) +
-	geom_roc(n.cuts = 12)+
+  geom_roc(n.cuts = 12)+
   labs(subtitle="Fig 33. False positives and false negatives")
 
 #Summary table
@@ -747,7 +742,7 @@ db.rf.mod.p <- predict(db.rf.mod, newdata=db_test, type="prob", aggregation="ave
 plot_data_rf_mod <- data.frame(D=db_test$class, p=db.rf.mod.p)
 #ggplot
 ggplot(plot_data_rf_mod, aes(d = D, m = p)) +
-	geom_roc(n.cuts = 12)+
+  geom_roc(n.cuts = 12)+
   labs(subtitle="Fig 34. False positives and false negatives")
 
 sumry.db.rf.mod <-class.summary(db_test$class, db.rf.mod.fp, db.rf.mod.p) 
@@ -802,7 +797,7 @@ removeOutliers <- function(.data, column){
   
   # Remove outliers
   cleaned_data <- .data[-outlier_indices,]
-
+  
   return(cleaned_data)
 }
 ```
@@ -888,7 +883,7 @@ hist(db.rf.or.p, main="Fig. 37. Histogram of probabilities of being malignant")
 plot_data_rf <- data.frame(D=db_test$class, p=db.rf.or.p)
 #ggplot
 ggplot(plot_data_rf, aes(d = D, m = p)) +
-	geom_roc(n.cuts = 12)+
+  geom_roc(n.cuts = 12)+
   labs(subtitle="Fig. 38. False positives and false negatives")
 
 #Summary table
@@ -984,7 +979,7 @@ plotCentroidOnPCA <- function(pca, color, centroid, thresh, figNum ){
   # malignant_cluster <- as.data.frame(pca_matrix) %>% filter(PC1 < thresh)
   # 
   # centroid <- colMeans(malignant_cluster)
-
+  
   centroid_df <- data.frame(PC1=centroid[["PC1"]], PC2= centroid[["PC2"]])
   ggplot(pca_x, aes(PC1, PC2, color=color))+
     geom_point()+
