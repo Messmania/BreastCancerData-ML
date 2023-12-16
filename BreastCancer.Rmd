@@ -2,7 +2,7 @@
 title: "BreastCancer"
 author: "Monika Sahai"
 date: "`r Sys.Date()`"
-output: bookdown::html_document2
+output: html_document
 ---
 # Introduction
 In the U.S. and Canada, breast cancer is the most diagnosed cancer among women accounting for almost 25% of all the cancer cases. It is one of the leading causes of cancer-related deaths in the U.S.
@@ -19,18 +19,13 @@ Original Dataset Link: https://archive.ics.uci.edu/dataset/15/breast+cancer+wisc
 
 # #ML
 # install.packages("GGally")
-# install.packages("broom")
 # install.packages("ggpubr")
 # install.packages("car")
 # 
 # install.packages("randomForest")
 # install.packages("pROC")
 # install.packages("plotROC")
-# install.packages("e1071")
-# install.packages("ipred")
 # install.packages("randomForest")
-# install.packages("greybox")
-# install.packages("bookdown")
 # install.packages("DescTools")
 # 
 # #Old
@@ -40,9 +35,7 @@ Original Dataset Link: https://archive.ics.uci.edu/dataset/15/breast+cancer+wisc
 # install.packages("ggplot2")
 # install.packages("formattable")
 
-# install.packages("prettydoc")
-
-# install.packages("ggpubr")
+# install.packages("magrittr")
 ```
 
 ```{r Library activation and Data loading}
@@ -62,7 +55,6 @@ library(formattable)
 library(corrplot)
 
 library(magrittr) #for pipe compatible custom function
-library(bookdown) #for auto figure numbering
 library(DescTools) #for %][% filtering
 
 
