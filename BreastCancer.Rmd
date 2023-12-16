@@ -11,6 +11,8 @@ Goal of the project is to make machine learning models to predict the class of t
 Research Question: To create a machine learning model for the breast cancer dataset predicting the class of the tumor as well as the its degree of malignancy using various ML models.
 This project aims to speed up the diagnosis of breast cancer by utilizing ML to predict whether a breast tumor is benign or malignant. Based on its degree of malignancy, tumors can further be classified and appropriate future treatments can be planned depending on the associated progression rate.
 
+Original Dataset Link: https://archive.ics.uci.edu/dataset/15/breast+cancer+wisconsin+original
+
 # Project Setup
 ```{r Installation Block}
 #New
@@ -85,7 +87,7 @@ data %>%
 7. Normal nucleoli: nucleolus is small and uniform in benign cells, whereas it is very prominent in malignant cancer cells and can sometimes be in multiples.
 8. Mitoses: This is estimate of the number of mitoses a cell has gone through. Larger value indicates malignancy.
 
-All the values indicate a lower value being closest to benignancy and 10 being the most malignant.
+For all the variables, lower values indicate more benign properties and 10 shows the most malignancy.
 
 # Data cleaning and wrangling
 ```{r Rename columns}
@@ -137,7 +139,6 @@ plotMissingValues <- function(value_df, figNum, showPlot=T){
 
 #Plots all values, and shows missing and valid values as proportions
 plotAllValues <- function(data, figNum){
-  # data <- cervical_data #TOREMOVE
   missing <- apply(data, 2, function(x){sum(x=='?')})
   valid <- apply(data, 2, function(x){sum(x!='?')})
   value_df <- data.frame(colNames=names(missing), missing = missing[], valid = valid[] )
@@ -157,8 +158,6 @@ plotAllValues <- function(data, figNum){
   
   p2 <- plotMissingValues(value_df, figNum+1, FALSE)
   
-  #axis='l' for aligning graphs left side, but warning still shows #TOREMOVE
-  # ggarrange( p1, p2, ncol=1, nrow = 2, heights = c(100, 100), align="v", axis="l")
   ggarrange( p1, p2, ncol=1, nrow = 2, heights = c(120, 120), align="v")
 }
 ```
@@ -287,6 +286,9 @@ breast_cancer %>%
   select(bareNuclei, marginalAdhesion, normalNucleoli, singleEpiCellSize, uniformityCellSize) %>% 
   apply(2, function(x){sum(x <=5)}) #values lower than 5, almost ~400 for these columns
 ```
+
+Distributions show the contributing variables which have significantly different median in benign and malignant tumors.
+There are a lot of outliers in benign tumor class. Let us look at the distribution of the data as a whole, without any class segregation.
 
 ```{r Overview of column distributions, no class segregation}
 #Plots for all values, without class differentiation
@@ -843,7 +845,7 @@ So we will build our RF model again. Let us first recenter our data.
 
 ```{r Centering the data-2}
 db_c <- cleaned %>%
-  select(-uniformityCellShape, -sampleCodeNumber) %>% #removing cell shape column #TOFIX, can also remove it before making the model
+  select(-uniformityCellShape, -sampleCodeNumber) %>% 
   #this centers the data around the mean by subtracting it from the mean 
   mutate(across(where(is.numeric), ~.-mean(.)))
 ```
