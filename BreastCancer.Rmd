@@ -1199,9 +1199,9 @@ ggplot(db_test_lm, aes(x = db_test_lm$degreeOfMalignancy , y = pred_dom)) +
   labs(subtitle="Fig. 55. Linear regression model predictions for degree of malignancy")
 ```
 
-As we can see from the graph, our predictions are fairly similar to the actual values of degree of malignancy. Therefore our linear model performs well and predicts the degree of malignancy in the correct trend as expected.
+As we can see from the graph, our predictions are fairly similar to the actual values of degree of malignancy. It is more accurate for lower values, and diverges a bit for higher degree of malignancy values. That implies our model is really good at predicting benign and moderately malignant tumors, but might lead to some deviation when it comes to extremely malignant tumors with very high degree of malignancy. We must emphasize that it could be due to input variables distribution not being entirely normal, so we might need more normalized data inputs. Therefore, we can say that our linear model performs well for the most part and predicts the degree of malignancy in the correct trend as expected.
 
 # Conclusion
 Hence, using the machine learning analysis, we were able to achieve a 96% accurate random forest and a well performing linear model explaining 89% variance in our dataset which enabled us to efficiently predict both the class and degree of malignancy of a tumor respectively.
-We also need to keep in mind that most of our variables were not normally distributed so our models may not be entirely accurate and might not more normally distributed data points to get a more accurate picture of the predictions.
+We also need to keep in mind that most of our variables were not normally distributed so our models may not be entirely accurate and might need more normally distributed data points to get a more accurate picture of the predictions.
 
