@@ -1081,14 +1081,19 @@ ggarrange(p7, p8, nrow=2, ncol=1)
 ```
 
 Looking at Figures 45, 46 and 50, we can say that clump thickness, uniformity in cell Size, and bland chromatin can be selected since they show fairly linear relationship to our outcome variable due to similar variation above and below the linear fit line.
-Let us ensure none of these 3 variables are strongly correlated
+In addition to this, we can notice in Fig. 32 (varImpPlot) that bareNuclei was the most important variable. So let us keep that in too, even though its relationship with the outcome variable is not as linear like the other 3 variables.
+Let us ensure none of these 4 variables are strongly correlated
 
 ```{r Check Correlation}
 cor(cleaned$uniformityCellSize, cleaned$clumpThickness_sq) #0.58
 cor(cleaned$blandChromatin, cleaned$uniformityCellSize) #0.74
 cor(cleaned$blandChromatin, cleaned$clumpThickness_sq) #0.51
+
+cor(cleaned$blandChromatin, cleaned$bareNuclei) #0.66
+cor(cleaned$clumpThickness_sq, cleaned$bareNuclei) #0.55
+cor(cleaned$uniformityCellSize, cleaned$bareNuclei) #0.68
 ```
-None of the correlations are too strong and hence we can use these 3 input variables to construct our linear model.
+None of the correlations are too strong and hence we can use these 4 input variables to construct our linear model.
 
 ```{r Util to check homoscedasticity}
 checkHomoscedasticity <- function(residuals, fitValues, figNum){
@@ -1105,13 +1110,15 @@ checkHomoscedasticity <- function(residuals, fitValues, figNum){
 ```
 
 ```{r Create linear model}
-linear_model <- lm(degreeOfMalignancy~ clumpThickness_sq*blandChromatin*uniformityCellSize, data=cleaned)
+linear_model <- lm(degreeOfMalignancy~ bareNuclei*clumpThickness_sq*blandChromatin*uniformityCellSize, data=cleaned)
 summary(linear_model)
 ```
 
-Summary of the model shows that adjusted R-square is 0.88, which means that 88.5% of the variance in the dataset is explained by our linear model, which is good.
-RSE is only 0.78 and all individual coefficients are significant except interaction between clump thickness and uniformity in cell size.
-p-value <0.05 tells us that overall the model is significant.
+Note: Just 3 input variables (without bare nuclei) was tried too. But including bare nuclei as an input variable increased Adjusted-R squared from 88 to 92%, reduced RSE from 0.78 to 0.63 and all coefficients became significant, so let us keep all 4 variables in.
+
+Summary of the model shows that adjusted R-square is 0.922, which means that 92.2% of the variance in the dataset is explained by our linear model, which is good.
+RSE is only 0.63 and all coefficients are significant.
+p-value <0.05 tells us that overall the model is significant. F ~500 is large which is good and shows that our model is a good fit and is significant.
 Let us check the homoscedasticity and vif score of our model.
 
 ```{r check homoscedasticity}
@@ -1128,18 +1135,26 @@ All vif scores are greater than 5, and very high, with highest being 341, so let
 
 ```{r Standardize the data}
 db_std <- cleaned %>% 
-  select(clumpThickness_sq, blandChromatin, uniformityCellSize, degreeOfMalignancy) %>% 
-  mutate(stClumpThickness = clumpThickness_sq - mean(clumpThickness_sq), stBlandChromatin = log2(blandChromatin) - mean(log2(blandChromatin)), stUniformityCellSize = log2(uniformityCellSize)- mean(log2(uniformityCellSize)) )
+  select(clumpThickness_sq, blandChromatin, uniformityCellSize, bareNuclei, degreeOfMalignancy) %>%
+  mutate(stClumpThickness = clumpThickness_sq - mean(clumpThickness_sq), stBlandChromatin = log2(blandChromatin) - mean(log2(blandChromatin)), stUniformityCellSize = log2(uniformityCellSize)- mean(log2(uniformityCellSize)) , stBareNuclei = log2(bareNuclei) - mean(log2(bareNuclei)) )
 ```
 
 ```{r Recreate and check vif}
-lm_centered <- lm(degreeOfMalignancy~ stClumpThickness*stUniformityCellSize*stBlandChromatin, data=db_std)
+lm_centered <- lm(degreeOfMalignancy~ stBareNuclei*stClumpThickness*stUniformityCellSize*stBlandChromatin, data=db_std)
 summary(lm_centered)
-vif(lm_centered) #all of them are under 5 now.
+vif(lm_centered) #some are between 5-10
 checkHomoscedasticity(lm_centered$residuals, lm_centered$fitted.values, 52)
 ```
+We can see that some vif scores are between 5-10 which indicates moderate correlation and not all coefficients are significant.
+On removing clump thickness from the model, all vif scores drop below 5, adjusted-r squared reduces from 91.8% to 90.4% which is a small decrease and all coefficients still remain significant. So we will remove clump thickness from the final model.
 
-Now all the vif scores are under 5. Also, note that our linear model has improved with a tighter fit around the linear line after we centered the data.
+```{r Remove clump thickness from the model}
+lm_centered <- lm(degreeOfMalignancy~ stBareNuclei*stUniformityCellSize*stBlandChromatin, data=db_std)
+summary(lm_centered)
+vif(lm_centered) #all of them are under 5 now.
+checkHomoscedasticity(lm_centered$residuals, lm_centered$fitted.values, 53)
+```
+Now all the vif scores are under 5 and variance explained is ~91%. Also, note that our linear model has improved with a tighter fit around the linear line after we standardized the data.
 
 ```{r Splitting the dataset-3}
 #Let us split the data into testing and training sets
@@ -1157,14 +1172,14 @@ db_std$Type <- "train"
 db_std$Type[test_rows] <- "test"
 ```
 
-```{r Remake the model on training data}
-lm_train <- lm(degreeOfMalignancy~ stClumpThickness*stUniformityCellSize*stBlandChromatin, data=db_train_lm)
+```{r Train the model on training data}
+lm_train <- lm(degreeOfMalignancy~ stBareNuclei*stUniformityCellSize*stBlandChromatin, data=db_train_lm)
 summary(lm_train)
 vif(lm_train) #all of them are under 5
-checkHomoscedasticity(lm_train$residuals, lm_train$fitted.values, 53) #shows homoscedasticity still
+checkHomoscedasticity(lm_train$residuals, lm_train$fitted.values, 54) #shows homoscedasticity still
 ```
 
-Our linear model explains ~89% of the variance in our dataset (Adjusted R-squared 0.89), and shows an RSE of only 0.73. This indicates that our predictions deviate by only by 0.73 units on an average from the true regression line. Most of the coefficients of the model are significant.
+Our linear model explains ~90% of the variance in our dataset (Adjusted R-squared 0.902), and shows an RSE of only 0.67. This indicates that our predictions deviate by only by 0.67 units on an average from the true regression line. Most of the coefficients of the model are significant.
 With p being <0.05, overall our model is significant and shows good performance.
 
 Let us now do predictions on the test data using our linear model 
@@ -1181,7 +1196,7 @@ ggplot(db_test_lm, aes(x = db_test_lm$degreeOfMalignancy , y = pred_dom)) +
   ylab("Predicted")+
   geom_point(aes(y = pred_dom), color = "red", shape = 16, alpha = 0.7)+
   scale_colour_manual("Line fit", breaks =c("linear", "loess"), values = c("blue", "lightgreen") )+
-  labs(subtitle="Fig. 54. Linear regression model predictions for degree of malignancy")
+  labs(subtitle="Fig. 55. Linear regression model predictions for degree of malignancy")
 ```
 
 As we can see from the graph, our predictions are fairly similar to the actual values of degree of malignancy. Therefore our linear model performs well and predicts the degree of malignancy in the correct trend as expected.
