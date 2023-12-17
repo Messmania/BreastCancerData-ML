@@ -626,7 +626,7 @@ plot_data <- data.frame(D=db_test$class, p=db.pred.glm.p)
 #ggplot 
 ggplot(plot_data, aes(d = D, m = p)) + 
   geom_roc(n.cuts = 12)+
-  labs(subtitle="Fig. 29. False positives and false negatives")
+  labs(subtitle="Fig. 29. True positives and false positives")
 
 #AUC
 a_glm <- auc(db_test$class, db.pred.glm.p)
@@ -663,7 +663,7 @@ plot_data <- data.frame(D=db_test$class, p=db.pred.glm.optimized.p)
 #ggplot 
 ggplot(plot_data, aes(d = D, m = p)) + 
   geom_roc(n.cuts = 12)+
-  labs(subtitle="Fig. 31. False positives and false negatives")
+  labs(subtitle="Fig. 31. True positives and false positives")
 
 #AUC
 a_op <- auc(db_test$class, db.pred.glm.optimized.p)
@@ -710,7 +710,7 @@ plot_data_rf <- data.frame(D=db_test$class, p=db.rf.optimized.p)
 #ggplot
 ggplot(plot_data_rf, aes(d = D, m = p)) +
   geom_roc(n.cuts = 12)+
-  labs(subtitle="Fig. 33. False positives and false negatives")
+  labs(subtitle="Fig. 33. True positives and false positives")
 
 #Summary table
 sumry.db.rf.optimized <-class.summary(db_test$class, db.rf.optimized.fp, db.rf.optimized.p) #AUC
@@ -737,7 +737,7 @@ plot_data_rf_mod <- data.frame(D=db_test$class, p=db.rf.mod.p)
 #ggplot
 ggplot(plot_data_rf_mod, aes(d = D, m = p)) +
   geom_roc(n.cuts = 12)+
-  labs(subtitle="Fig. 34. False positives and false negatives")
+  labs(subtitle="Fig. 34. True positives and false positives")
 
 sumry.db.rf.mod <-class.summary(db_test$class, db.rf.mod.fp, db.rf.mod.p) 
 a_rf_mod<-auc(db_test$class, db.rf.mod.p)
@@ -878,7 +878,7 @@ plot_data_rf <- data.frame(D=db_test$class, p=db.rf.or.p)
 #ggplot
 ggplot(plot_data_rf, aes(d = D, m = p)) +
   geom_roc(n.cuts = 12)+
-  labs(subtitle="Fig. 38. False positives and false negatives")
+  labs(subtitle="Fig. 38. True positives and false positives")
 
 #Summary table
 sumry.db.rf.or <-class.summary(db_test$class, db.rf.or.fp, db.rf.or.p) #AUC
