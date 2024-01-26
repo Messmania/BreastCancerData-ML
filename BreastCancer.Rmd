@@ -481,7 +481,7 @@ plot(hc, main = "Fig. 24. Dendrogram of attributes", xlab = "Correlation distanc
 rect.hclust(hc, k = 3, border = 2:10)
 ```
 
-In the correlation plot, we can notice that uniformity in cell shape and size correlate with many of the other variables (first 2 columns in the Fivure). Checking the correlation matrix values, we can also see that they correlate with each other pretty strongly ~0.907, so we must handle this before ML modelling.
+In the correlation plot, we can notice that uniformity in cell shape and size correlate with many of the other variables (first 2 columns in the Figure). Checking the correlation matrix values, we can also see that they correlate with each other pretty strongly ~0.907, so we must handle this before ML modelling.
 Clump thickness also correlates with most of the variables (bottom most row).
 Dendrogram shows us how similar or closely related the attributes are. As also seen in the correlation matrix, uniformity of cell shape and size are closely related. Marginal adhesion, bare nuclei, and bland chromatin shows similar relation in the dendrogram, being more related compared to others.
 As evident from both corrplot and dendrogram, mitoses has the least correlation with other variables.
@@ -675,7 +675,7 @@ data.frame(lm_test, lm_optimized)
 #To compare 2 models
 anova(db.glm.optimized, db.glm, test = "Chisq")
 ```
-Looking at the model summary, we can see optimized model excludes single epithalial cell size attribute.
+Looking at the model summary, we can see optimized model excludes single epithelial cell size attribute.
 Even though the optimization did not improve the model performance much in terms of accuracy, sensitivity, specificity or AUC, but it reduces AUC by 10 units and uses 1 variables less than the unoptimized model. So our optimized model performs similarly and is a bit simpler.
 
 Let us try a random forest to see if we can figure out the variables in terms of their importance.
